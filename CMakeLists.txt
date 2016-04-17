@@ -188,7 +188,7 @@ add_custom_target(Pages DEPENDS
                   "${CMAKE_CURRENT_BINARY_DIR}/bin/rr_page_32_replay"
                   "${CMAKE_CURRENT_BINARY_DIR}/bin/rr_page_64_replay")
 
-add_executable(rr
+add_library(rrlib
   src/test/cpuid_loop.S
   src/AddressSpace.cc
   src/AutoRemoteSyscalls.cc
@@ -217,7 +217,6 @@ add_executable(rr
   src/kernel_metadata.cc
   src/log.cc
   src/MagicSaveDataMonitor.cc
-  src/main.cc
   src/Monkeypatcher.cc
   src/PerfCounters.cc
   src/ProcMemMonitor.cc
@@ -247,13 +246,21 @@ add_executable(rr
   src/util.cc
   src/WaitStatus.cc
 )
-add_dependencies(rr Generated Pages)
+add_dependencies(rrlib Generated Pages)
 
-target_link_libraries(rr
+target_link_libraries(rrlib
   ${CMAKE_DL_LIBS}
   -lrt
   ${ZLIB_LDFLAGS}
 )
+
+add_executable(rr
+    src/main.cc
+)
+target_link_libraries(rr
+  rrlib
+)
+
 
 target_link_libraries(rrpreload
   ${CMAKE_DL_LIBS}
@@ -271,7 +278,7 @@ install(PROGRAMS scripts/signal-rr-recording.sh
                   ${CMAKE_CURRENT_BINARY_DIR}/bin/rr_page_32_replay
   DESTINATION bin)
 
-install(TARGETS rr rrpreload exec_stub
+install(TARGETS rrlib rr rrpreload exec_stub
   RUNTIME DESTINATION bin
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib)
