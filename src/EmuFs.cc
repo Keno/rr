@@ -162,7 +162,7 @@ void EmuFs::log() const {
 
 EmuFs::EmuFs() {}
 
-EmuFs::FileId::FileId(const KernelMapping& recorded_map)
+FileId::FileId(const KernelMapping& recorded_map)
     : device(recorded_map.device()), inode(recorded_map.inode()) {}
 
 } // namespace rr

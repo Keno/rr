@@ -470,6 +470,8 @@ target_link_libraries(rr
   ${CMAKE_DL_LIBS}
   -lrt
   brotli
+  -lboost_filesystem
+  -lboost_system
 )
 
 if(staticlibs)

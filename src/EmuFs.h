@@ -129,6 +129,21 @@ private:
   EmuFile operator=(const EmuFile&) = delete;
 };
 
+struct FileId {
+  FileId(const KernelMapping& recorded_map);
+  FileId(const EmuFile& emu_file)
+      : device(emu_file.device()), inode(emu_file.inode()) {}
+  bool operator==(const FileId& other) const {
+    return (device == other.device && inode == other.inode);
+  }
+  bool operator<(const FileId& other) const {
+    return device < other.device ||
+           (device == other.device && inode < other.inode);
+  }
+  dev_t device;
+  ino_t inode;
+};
+
 class EmuFs {
 public:
   typedef std::shared_ptr<EmuFs> shr_ptr;
@@ -164,18 +179,6 @@ public:
 
 private:
   EmuFs();
-
-  struct FileId {
-    FileId(const KernelMapping& recorded_map);
-    FileId(const EmuFile& emu_file)
-        : device(emu_file.device()), inode(emu_file.inode()) {}
-    bool operator<(const FileId& other) const {
-      return device < other.device ||
-             (device == other.device && inode < other.inode);
-    }
-    dev_t device;
-    ino_t inode;
-  };
 
   typedef std::map<FileId, std::weak_ptr<EmuFile>> FileMap;
 
