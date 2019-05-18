@@ -199,6 +199,11 @@ std::vector<CPUIDRecord> all_cpuid_records();
 bool cpuid_faulting_works();
 
 /**
+ * Returns true if XCR0 masking is supported by the kernel.
+ */
+bool xcr0_masking_works();
+
+/**
  * Locate a CPUID record for the give parameters, or return nullptr if there
  * isn't one.
  */

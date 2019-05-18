@@ -86,6 +86,12 @@ void ReplayTask::post_exec_syscall(const string& replay_exe) {
   extra_registers = current_trace_frame().extra_regs();
   ASSERT(this, !extra_registers.empty());
   set_extra_regs(extra_registers);
+
+  if (session().modified_xcr0()) {
+    AutoRemoteSyscalls remote(this);
+    remote.infallible_syscall(syscall_number_for_arch_prctl(arch()),
+                              ARCH_SET_XCR0, session().modified_xcr0());
+  }
 }
 
 void ReplayTask::validate_regs(uint32_t flags) {

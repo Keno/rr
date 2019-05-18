@@ -91,7 +91,7 @@ static bool tracee_xsave_enabled(const TraceReader& trace_in) {
   return (record->out.ecx & OSXSAVE_FEATURE_FLAG) != 0;
 }
 
-static void check_xsave_compatibility(const TraceReader& trace_in) {
+void ReplaySession::check_xsave_compatibility() {
   if (!tracee_xsave_enabled(trace_in)) {
     // Tracee couldn't use XSAVE so everything should be fine.
     // If it didn't detect absence of XSAVE and actually executed an XSAVE
@@ -100,7 +100,7 @@ static void check_xsave_compatibility(const TraceReader& trace_in) {
   }
   if (!xsave_enabled()) {
     // Replaying on a super old CPU that doesn't even support XSAVE!
-    if (!Flags::get().suppress_environment_warnings) {
+    if (!rr::Flags::get().suppress_environment_warnings) {
       fprintf(stderr, "rr: Tracees had XSAVE but XSAVE is not available "
               "now; Replay will probably fail because glibc dynamic loader "
               "uses XSAVE\n\n");
@@ -116,23 +116,28 @@ static void check_xsave_compatibility(const TraceReader& trace_in) {
   CPUIDData data = cpuid(CPUID_GETXSAVE, 1);
   bool our_xsavec = (data.eax & XSAVEC_FEATURE_FLAG) != 0;
   if (tracee_xsavec && !our_xsavec &&
-      !Flags::get().suppress_environment_warnings) {
+      !rr::Flags::get().suppress_environment_warnings) {
     fprintf(stderr, "rr: Tracees had XSAVEC but XSAVEC is not available "
             "now; Replay will probably fail because glibc dynamic loader "
             "uses XSAVEC\n\n");
   }
 
   if (tracee_xcr0 != our_xcr0) {
-    if (tracee_xsavec) {
-      LOG(warn) << "Trace XCR0 value " << HEX(tracee_xcr0) << " != our XCR0 "
-          << "value " << HEX(our_xcr0) << "; Replay will fail if the tracee "
-          << "used plain XSAVE";
-    } else if (!Flags::get().suppress_environment_warnings) {
-      // Tracee may have used XSAVE instructions which write different components
-      // to XSAVE instructions executed on our CPU. This will cause divergence.
-      cerr << "Trace XCR0 value " << HEX(tracee_xcr0) << " != our XCR0 "
-          << "value " << HEX(our_xcr0) << "; Replay will probably fail "
-          << "because glibc dynamic loader uses XSAVE\n\n";
+    if (xcr0_masking_works()) {
+      LOG(info) << "Using XCR0 masking";
+      this->tracee_xcr0 = tracee_xcr0;
+    } else {
+      if (tracee_xsavec) {
+        LOG(warn) << "Trace XCR0 value " << HEX(tracee_xcr0) << " != our XCR0 "
+            << "value " << HEX(our_xcr0) << "; Replay will fail if the tracee "
+            << "used plain XSAVE";
+      } else if (!rr::Flags::get().suppress_environment_warnings) {
+        // Tracee may have used XSAVE instructions which write different components
+        // to XSAVE instructions executed on our CPU. This will cause divergence.
+        cerr << "Trace XCR0 value " << HEX(tracee_xcr0) << " != our XCR0 "
+            << "value " << HEX(our_xcr0) << "; Replay will probably fail "
+            << "because glibc dynamic loader uses XSAVE\n\n";
+      }
     }
   }
 
@@ -163,7 +168,8 @@ ReplaySession::ReplaySession(const std::string& dir)
       trace_frame(),
       current_step(),
       ticks_at_start_of_event(0),
-      trace_start_time(0) {
+      trace_start_time(0),
+      tracee_xcr0(0) {
   memset(&last_siginfo_, 0, sizeof(last_siginfo_));
   advance_to_next_trace_frame();
 
@@ -180,7 +186,7 @@ ReplaySession::ReplaySession(const std::string& dir)
            "and CPUID faulting is not enabled; replay will not work.";
   }
 
-  check_xsave_compatibility(trace_in);
+  check_xsave_compatibility();
 }
 
 ReplaySession::ReplaySession(const ReplaySession& other)
@@ -193,7 +199,8 @@ ReplaySession::ReplaySession(const ReplaySession& other)
       cpuid_bug_detector(other.cpuid_bug_detector),
       last_siginfo_(other.last_siginfo_),
       flags(other.flags),
-      trace_start_time(other.trace_start_time) {}
+      trace_start_time(other.trace_start_time),
+      tracee_xcr0(other.tracee_xcr0) {}
 
 ReplaySession::~ReplaySession() {
   // We won't permanently leak any OS resources by not ensuring
