@@ -1076,6 +1076,7 @@ set(BASIC_CPP_TESTS
 set(TESTS_WITH_PROGRAM
   abort_nonmain
   args
+  arch_prctl_xcr0
   async_kill_with_threads
   async_kill_with_threads_main_running
   async_kill_with_threads_thread_running

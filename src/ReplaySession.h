@@ -305,6 +305,8 @@ public:
   virtual TraceStream* trace_stream() override { return &trace_in; }
 
   virtual int cpu_binding(TraceStream& trace) const override;
+   
+  unsigned long modified_xcr0() { return tracee_xcr0; }
 
 private:
   ReplaySession(const std::string& dir, const Flags& flags);
@@ -346,6 +348,8 @@ private:
 
   void clear_syscall_bp();
 
+  void check_xsave_compatibility();
+
   std::shared_ptr<EmuFs> emu_fs;
   TraceReader trace_in;
   TraceFrame trace_frame;
@@ -360,6 +364,11 @@ private:
   // during 'replay' to calculate the elapsed time between the first event and
   // all other recorded events in the timeline during the 'record' phase.
   double trace_start_time;
+
+  // If the kernel supports XCR0 masking, and we need to mask XCR0 (because
+  // the recording's XCR0 differs from that of this CPU), this field
+  // stores the (non-zero) value of the required XCR0. The field is 0 otherwise.
+  unsigned long tracee_xcr0;
 
   std::shared_ptr<AddressSpace> syscall_bp_vm;
   remote_code_ptr syscall_bp_addr;

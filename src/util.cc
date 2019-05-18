@@ -1017,6 +1017,17 @@ bool cpuid_compatible(const vector<CPUIDRecord>& trace_records) {
   return cpu_type == trace_cpu_type;
 }
 
+bool xcr0_masking_works() {
+  // Test to see if CPUID faulting works.
+  unsigned long current_xcr0 = xcr0();
+  if (RR_ARCH_PRCTL(ARCH_SET_XCR0, current_xcr0) != 0) {
+    LOG(debug) << "CPUID faulting not supported by kernel/hardware";
+    return false;
+  }
+
+  return true;
+}
+
 template <typename Arch>
 static CloneParameters extract_clone_parameters_arch(const Registers& regs) {
   CloneParameters result;
