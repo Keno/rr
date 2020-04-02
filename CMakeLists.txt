@@ -1410,19 +1410,19 @@ if(BUILD_TESTS)
 
   foreach(test ${BASIC_TESTS} ${BASIC_CPP_TESTS} ${OTHER_TESTS})
     add_test(${test}
-      bash "../rr/src/test/basic_test.run" ${test} -b ${TESTSUITE_BINARY_DIR} ${TEST_MONITOR_DEFAULT_TIMEOUT})
+      bash "${CMAKE_CURRENT_SOURCE_DIR}/src/test/basic_test.run" ${test} -b ${TESTSUITE_BINARY_DIR} ${TEST_MONITOR_DEFAULT_TIMEOUT})
     configure_test(${test})
     add_test(${test}-no-syscallbuf
-      bash "../rr/src/test/basic_test.run" ${test} -n ${TESTSUITE_BINARY_DIR} ${TEST_MONITOR_DEFAULT_TIMEOUT})
+      bash "${CMAKE_CURRENT_SOURCE_DIR}/src/test/basic_test.run" ${test} -n ${TESTSUITE_BINARY_DIR} ${TEST_MONITOR_DEFAULT_TIMEOUT})
     configure_test(${test}-no-syscallbuf)
   endforeach(test)
 
   foreach(test ${TESTS_WITH_PROGRAM} ${TESTS_WITHOUT_PROGRAM})
     add_test(${test}
-      bash "../rr/src/test/${test}.run" ${test} -b ${TESTSUITE_BINARY_DIR} ${TEST_MONITOR_DEFAULT_TIMEOUT})
+      bash "${CMAKE_CURRENT_SOURCE_DIR}/src/test/${test}.run" ${test} -b ${TESTSUITE_BINARY_DIR} ${TEST_MONITOR_DEFAULT_TIMEOUT})
     configure_test(${test})
     add_test(${test}-no-syscallbuf
-      bash "../rr/src/test/${test}.run" ${test} -n ${TESTSUITE_BINARY_DIR} ${TEST_MONITOR_DEFAULT_TIMEOUT})
+      bash "${CMAKE_CURRENT_SOURCE_DIR}/src/test/${test}.run" ${test} -n ${TESTSUITE_BINARY_DIR} ${TEST_MONITOR_DEFAULT_TIMEOUT})
     configure_test(${test}-no-syscallbuf)
   endforeach(test)
 
@@ -1488,19 +1488,19 @@ if(BUILD_TESTS)
 
     foreach(test ${BASIC_TESTS} ${OTHER_TESTS})
       add_test(${test}-32
-        bash "../rr/src/test/basic_test.run" ${test}_32 -b ${TESTSUITE_BINARY_DIR})
+        bash "${CMAKE_CURRENT_SOURCE_DIR}/src/test/basic_test.run" ${test}_32 -b ${TESTSUITE_BINARY_DIR})
       configure_test(${test}-32)
       add_test(${test}-32-no-syscallbuf
-        bash "../rr/src/test/basic_test.run" ${test}_32 -n ${TESTSUITE_BINARY_DIR})
+        bash "${CMAKE_CURRENT_SOURCE_DIR}/src/test/basic_test.run" ${test}_32 -n ${TESTSUITE_BINARY_DIR})
       configure_test(${test}-32-no-syscallbuf)
     endforeach(test)
 
     foreach(test ${TESTS_WITH_PROGRAM} ${TESTS_WITHOUT_PROGRAM})
       add_test(${test}-32
-        bash "../rr/src/test/${test}.run" ${test}_32 -b ${TESTSUITE_BINARY_DIR})
+        bash "${CMAKE_CURRENT_SOURCE_DIR}/src/test/${test}.run" ${test}_32 -b ${TESTSUITE_BINARY_DIR})
       configure_test(${test}-32)
       add_test(${test}-32-no-syscallbuf
-        bash "../rr/src/test/${test}.run" ${test}_32 -n ${TESTSUITE_BINARY_DIR})
+        bash "${CMAKE_CURRENT_SOURCE_DIR}/src/test/${test}.run" ${test}_32 -n ${TESTSUITE_BINARY_DIR})
       configure_test(${test}-32-no-syscallbuf)
     endforeach(test)
   endif()
