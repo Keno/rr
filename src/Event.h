@@ -85,6 +85,9 @@ enum EventType {
   // Use .syscall.
   EV_SYSCALL,
 
+  // No associated data
+  EV_DETACH,
+
   EV_LAST
 };
 
@@ -369,6 +372,7 @@ struct Event {
   static Event grow_map() { return Event(EV_GROW_MAP); }
   static Event exit() { return Event(EV_EXIT); }
   static Event sentinel() { return Event(EV_SENTINEL); }
+  static Event detach() { return Event(EV_DETACH); }
 
 private:
   Event(EventType type) : event_type(type) {}

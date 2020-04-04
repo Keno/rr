@@ -944,6 +944,15 @@ void RecordSession::syscall_state_changed(RecordTask* t,
         arm_desched_event(t);
       }
 
+      if (t->detached_proxy) {
+        // We detached. Record that.
+        t->record_event(Event::detach(), RecordTask::DONT_FLUSH_SYSCALLBUF,
+          RecordTask::DONT_RESET_SYSCALLBUF);
+        t->session().trace_writer().write_task_event(
+            TraceTaskEvent::for_detach(t->tid));
+        step_state->continue_type = DONT_CONTINUE;
+      }
+
       return;
     }
 
@@ -2219,6 +2228,11 @@ RecordTask* RecordSession::find_task(pid_t rec_tid) const {
 
 RecordTask* RecordSession::find_task(const TaskUid& tuid) const {
   return static_cast<RecordTask*>(Session::find_task(tuid));
+}
+
+void RecordSession::on_proxy_detach(RecordTask *t, pid_t new_tid) {
+  Session::on_destroy(t);
+  task_map[new_tid] = t;
 }
 
 uint64_t RecordSession::rr_signal_mask() const {

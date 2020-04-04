@@ -1483,6 +1483,7 @@ ReplayTask* ReplaySession::setup_replay_one_trace_frame(ReplayTask* t) {
   memset(&current_step, 0, sizeof(current_step));
 
   switch (ev.type()) {
+    case EV_DETACH:
     case EV_EXIT:
       current_step.action = TSTEP_EXIT_TASK;
       break;

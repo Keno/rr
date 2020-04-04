@@ -211,6 +211,7 @@ std::string Event::type_name() const {
       CASE(SYSCALL);
       CASE(SYSCALL_INTERRUPTION);
       CASE(TRACE_TERMINATION);
+      CASE(DETACH);
 #undef CASE
     default:
       FATAL() << "Unknown event type " << event_type;

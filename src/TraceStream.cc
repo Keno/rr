@@ -454,6 +454,9 @@ void TraceWriter::write_frame(RecordTask* t, const Event& ev,
     case EV_SIGNAL_HANDLER:
       to_trace_signal(event.initSignalHandler(), ev);
       break;
+    case EV_DETACH:
+      event.setDetach(Void());
+      break;
     case EV_EXIT:
       event.setExit(Void());
       break;
@@ -586,6 +589,9 @@ TraceFrame TraceReader::read_frame() {
     case trace::Frame::Event::SIGNAL_HANDLER:
       ret.ev = from_trace_signal(EV_SIGNAL_HANDLER, event.getSignalHandler());
       break;
+    case trace::Frame::Event::DETACH:
+      ret.ev = Event::detach();
+      break;
     case trace::Frame::Event::EXIT:
       ret.ev = Event::exit();
       break;
@@ -679,6 +685,9 @@ void TraceWriter::write_task_event(const TraceTaskEvent& event) {
     case TraceTaskEvent::EXIT:
       task.initExit().setExitStatus(event.exit_status().get());
       break;
+    case TraceTaskEvent::DETACH:
+      task.initDetach();
+      break;
     case TraceTaskEvent::NONE:
       DEBUG_ASSERT(0 && "Writing NONE TraceTaskEvent");
       break;
@@ -733,6 +742,9 @@ TraceTaskEvent TraceReader::read_task_event(FrameTime* time) {
     case trace::TaskEvent::Which::EXIT:
       r.type_ = TraceTaskEvent::EXIT;
       r.exit_status_ = WaitStatus(task.getExit().getExitStatus());
+      break;
+    case trace::TaskEvent::Which::DETACH:
+      r.type_ = TraceTaskEvent::DETACH;
       break;
     default:
       DEBUG_ASSERT(0 && "Unknown TraceEvent type");

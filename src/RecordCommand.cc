@@ -316,6 +316,8 @@ static bool parse_record_arg(vector<string>& args, RecordFlags& flags) {
         flags.nested = NESTED_ERROR;
       } else if (opt.value == "ignore") {
         flags.nested = NESTED_IGNORE;
+      } else if (opt.value == "detach") {
+        flags.nested = NESTED_DETACH;
       } else {
         LOG(warn) << "Unknown nesting behavior `" << opt.value << "`";
         flags.nested = NESTED_ERROR;
@@ -699,6 +701,8 @@ static void reset_uid_sudo() {
   prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0);
 }
 
+
+
 int RecordCommand::run(vector<string>& args) {
   RecordFlags flags;
   while (parse_record_arg(args, flags)) {
@@ -707,11 +711,37 @@ int RecordCommand::run(vector<string>& args) {
   if (running_under_rr()) {
     if (flags.nested == NESTED_IGNORE) {
       exec_child(args);
+    } else if (flags.nested == NESTED_DETACH) {
+      int ret = syscall(SYS_rrcall_detach_teleport, 0, 0, 0, 0, 0, 0);
+      if (ret < 0) {
+        FATAL() << "Failed to detach from parent rr";
+      }
+      if (running_under_rr(false)) {
+        FATAL() << "Detaching from parent rr did not work";
+      }
+      // Drop any LD_PRELOAD from the outer rr from our LD_PRELOAD list
+      char *ld_preload_env = getenv("LD_PRELOAD");
+      if (ld_preload_env) {
+        string ld_preload(ld_preload_env);
+        size_t it = ld_preload.find(":");
+        if (it != string::npos) {
+          // If the preload library is loaded at all, it must be first
+          size_t preload_it = ld_preload.find("librrpreload");
+          if (preload_it < it) {
+            string new_ld_preload=ld_preload.substr(++it);
+            setenv("LD_PRELOAD", new_ld_preload.c_str(), 1);
+          } else {
+            DEBUG_ASSERT(preload_it == string::npos);
+          }
+        }
+      }
+      // Fall through
+    } else {
+      fprintf(stderr, "rr: cannot run rr recording under rr. Exiting.\n"
+                      "Use `rr record --nested=ignore` to start the child "
+                      "process directly.\n");
+      return 1;
     }
-    fprintf(stderr, "rr: cannot run rr recording under rr. Exiting.\n"
-                    "Use `rr record --nested=ignore` to start the child "
-                    "process directly.\n");
-    return 1;
   }
 
   if (!verify_not_option(args) || args.size() == 0) {
