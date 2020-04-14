@@ -361,8 +361,10 @@ public:
      or trace */
   void do_bind_cpu(TraceStream &trace);
 
+  const PerfCounterSetup& perf_counter_setup() const { return setup; };
+
 protected:
-  Session();
+  Session(bool virtual_perf_counters = false);
   virtual ~Session();
 
   ScopedFd create_spawn_task_error_pipe();
@@ -402,6 +404,7 @@ protected:
   int rrcall_base_;
   PtraceSyscallBeforeSeccomp syscall_seccomp_ordering_;
 
+  PerfCounterSetup setup;
   TicksSemantics ticks_semantics_;
 
   /**

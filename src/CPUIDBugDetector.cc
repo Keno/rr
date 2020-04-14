@@ -22,7 +22,7 @@ void CPUIDBugDetector::run_detection_code() {
 }
 
 static bool rcb_counts_ok(ReplayTask* t, uint64_t prev, uint64_t current) {
-  uint32_t expected_count = 2 + PerfCounters::ticks_for_direct_call(t);
+  uint32_t expected_count = 2 + t->session().perf_counter_setup().ticks_for_direct_call(t);
   if (current - prev == expected_count) {
     return true;
   }

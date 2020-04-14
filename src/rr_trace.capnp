@@ -237,7 +237,7 @@ struct Frame {
     signalDelivery @14 :Signal;
     signalHandler @15 :Signal;
     exit @16 :Void;
-    detach @26: Void;
+    detach @27: Void;
     syscallbufFlush :group {
       # Not used during replay, but affects virtual memory layout so
       # useful for some tools

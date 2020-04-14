@@ -479,7 +479,8 @@ void normalize_file_name(std::string& s);
 enum NestedBehavior {
   NESTED_ERROR,
   NESTED_IGNORE,
-  NESTED_DETACH
+  NESTED_DETACH,
+  NESTED_DETACH_CHILD
 };
 
 std::string find_exec_stub(SupportedArch arch);

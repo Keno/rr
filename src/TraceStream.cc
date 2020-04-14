@@ -1292,7 +1292,7 @@ void TraceWriter::close(CloseStatus status, const TraceUuid* uuid) {
                    cpuid_records.size() * sizeof(CPUIDRecord)));
   header.setXcr0(xcr0());
   header.setTicksSemantics(
-    to_trace_ticks_semantics(PerfCounters::default_ticks_semantics()));
+    to_trace_ticks_semantics(ticks_semantics_));
   header.setSyscallbufProtocolVersion(SYSCALLBUF_PROTOCOL_VERSION);
   header.setPreloadThreadLocalsRecorded(true);
   header.setRrcallBase(syscall_number_for_rrcall_init_preload(x86_64));

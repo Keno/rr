@@ -553,6 +553,9 @@ public:
    */
   void send_synthetic_SIGCHLD_if_necessary();
 
+  /* Copy our task's sighandlers to the other task */
+  void apply_sighandlers_to(AutoRemoteSyscalls &remote);
+
 private:
   /* Retrieve the tid of this task from the tracee and store it */
   void update_own_namespace_tid();

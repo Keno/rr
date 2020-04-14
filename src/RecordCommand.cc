@@ -318,6 +318,8 @@ static bool parse_record_arg(vector<string>& args, RecordFlags& flags) {
         flags.nested = NESTED_IGNORE;
       } else if (opt.value == "detach") {
         flags.nested = NESTED_DETACH;
+      } else if (opt.value == "detach_child") {
+        flags.nested = NESTED_DETACH_CHILD;
       } else {
         LOG(warn) << "Unknown nesting behavior `" << opt.value << "`";
         flags.nested = NESTED_ERROR;
@@ -598,7 +600,8 @@ static WaitStatus record(const vector<string>& args, const RecordFlags& flags) {
       flags.use_syscall_buffer, flags.syscallbuf_desched_sig,
       flags.bind_cpu, flags.output_trace_dir,
       flags.trace_id.get(),
-      flags.stap_sdt);
+      flags.stap_sdt,
+      flags.nested == NESTED_DETACH_CHILD);
   setup_session_from_flags(*session, flags);
 
   static_session = session.get();
@@ -701,7 +704,23 @@ static void reset_uid_sudo() {
   prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0);
 }
 
-
+static void strip_old_ld_preload() {
+  char *ld_preload_env = getenv("LD_PRELOAD");
+  if (ld_preload_env) {
+    string ld_preload(ld_preload_env);
+    size_t it = ld_preload.find(":");
+    if (it != string::npos) {
+      // If the preload library is loaded at all, it must be first
+      size_t preload_it = ld_preload.find("librrpreload");
+      if (preload_it < it) {
+        string new_ld_preload=ld_preload.substr(++it);
+        setenv("LD_PRELOAD", new_ld_preload.c_str(), 1);
+      } else {
+        DEBUG_ASSERT(preload_it == string::npos);
+      }
+    }
+  }
+}
 
 int RecordCommand::run(vector<string>& args) {
   RecordFlags flags;
@@ -719,22 +738,11 @@ int RecordCommand::run(vector<string>& args) {
       if (running_under_rr(false)) {
         FATAL() << "Detaching from parent rr did not work";
       }
-      // Drop any LD_PRELOAD from the outer rr from our LD_PRELOAD list
-      char *ld_preload_env = getenv("LD_PRELOAD");
-      if (ld_preload_env) {
-        string ld_preload(ld_preload_env);
-        size_t it = ld_preload.find(":");
-        if (it != string::npos) {
-          // If the preload library is loaded at all, it must be first
-          size_t preload_it = ld_preload.find("librrpreload");
-          if (preload_it < it) {
-            string new_ld_preload=ld_preload.substr(++it);
-            setenv("LD_PRELOAD", new_ld_preload.c_str(), 1);
-          } else {
-            DEBUG_ASSERT(preload_it == string::npos);
-          }
-        }
-      }
+      strip_old_ld_preload();
+      // Fall through
+    } else if (flags.nested == NESTED_DETACH_CHILD) {
+      // Detaching itself happens later
+      strip_old_ld_preload();
       // Fall through
     } else {
       fprintf(stderr, "rr: cannot run rr recording under rr. Exiting.\n"

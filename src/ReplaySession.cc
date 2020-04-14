@@ -156,7 +156,8 @@ static void check_xsave_compatibility(const TraceReader& trace_in) {
 }
 
 ReplaySession::ReplaySession(const std::string& dir, const Flags& flags)
-    : emu_fs(EmuFs::create()),
+    : Session(running_under_rr()),
+      emu_fs(EmuFs::create()),
       trace_in(dir),
       trace_frame(),
       current_step(),
@@ -181,7 +182,7 @@ ReplaySession::ReplaySession(const std::string& dir, const Flags& flags)
         << "Trace was recorded on a machine with different CPUID values\n"
            "and CPUID faulting is not enabled; replay will not work.";
   }
-  if (!PerfCounters::supports_ticks_semantics(ticks_semantics_)) {
+  if (!perf_counter_setup().supports_ticks_semantics(ticks_semantics_)) {
     CLEAN_FATAL()
         << "Trace was recorded on a machine that defines ticks differently\n"
            "to this machine; replay will not work.";
@@ -377,7 +378,9 @@ static bool compute_ticks_request(
   *ticks_request = RESUME_UNLIMITED_TICKS;
   if (constraints.ticks_target > 0) {
     Ticks ticks_period =
-        constraints.ticks_target - PerfCounters::skid_size() - t->tick_count();
+        constraints.ticks_target -
+        t->session().perf_counter_setup().skid_size() -
+        t->tick_count();
     if (ticks_period <= 0) {
       // Behave as if we actually executed something. Callers assume we did.
       t->clear_wait_status();
@@ -768,16 +771,17 @@ Completion ReplaySession::emulate_async_signal(
              << ip;
 
   /* XXX should we only do this if (ticks > 10000)? */
-  while (ticks_left - PerfCounters::skid_size() > PerfCounters::skid_size()) {
+  rr::Ticks skid_size = t->session().perf_counter_setup().skid_size();
+  while ((ticks_left - skid_size) > skid_size) {
     LOG(debug) << "  programming interrupt for "
-               << (ticks_left - PerfCounters::skid_size()) << " ticks";
+               << (ticks_left - skid_size) << " ticks";
 
     // Avoid overflow. If ticks_left > MAX_TICKS_REQUEST, execution will stop
     // early but we'll treat that just like a stray TIME_SLICE_SIGNAL and
     // continue as needed.
     continue_or_step(t, constraints,
                      (TicksRequest)(min<Ticks>(MAX_TICKS_REQUEST, ticks_left) -
-                                    PerfCounters::skid_size()));
+                                    skid_size));
     guard_unexpected_signal(t);
 
     ticks_left = ticks - t->tick_count();
@@ -1314,7 +1318,7 @@ void ReplaySession::check_approaching_ticks_target(
     BreakStatus& break_status) {
   if (constraints.ticks_target > 0) {
     Ticks ticks_left = constraints.ticks_target - t->tick_count();
-    if (ticks_left <= PerfCounters::skid_size()) {
+    if (ticks_left <= perf_counter_setup().skid_size()) {
       break_status.approaching_ticks_target = true;
     }
   }

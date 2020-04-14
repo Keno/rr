@@ -124,7 +124,7 @@ static void filter_dirents(RecordTask* t) {
 void ProcFdDirMonitor::filter_getdents(RecordTask* t) {
   ASSERT(t, !t->session().is_replaying());
   auto* target = static_cast<RecordTask*>(t->session().find_task(tuid));
-  if (!target) {
+  if (!target || target->detached_proxy) {
     return;
   }
 

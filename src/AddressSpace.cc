@@ -659,6 +659,11 @@ uint8_t* AddressSpace::local_mapping(remote_ptr<void> addr, size_t size) {
   if (it == mem.end()) {
     return nullptr;
   }
+  // When running under rr, do not allow local mappings, in case we detached
+  // the child.
+  if (running_under_rr()) {
+    return nullptr;
+  }
   DEBUG_ASSERT(it->second.map.contains(range));
   const Mapping& map = it->second;
   // Fall back to the slow path if we can't get the entire region

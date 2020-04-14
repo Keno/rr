@@ -68,7 +68,8 @@ public:
       BindCPU bind_cpu = BIND_CPU,
       const std::string& output_trace_dir = "",
       const TraceUuid* trace_id = nullptr,
-      bool use_audit = false);
+      bool use_audit = false,
+      bool detach_child_mode = false);
 
   const DisableCPUIDFeatures& disable_cpuid_features() const {
     return disable_cpuid_features_;
@@ -195,7 +196,8 @@ private:
                 BindCPU bind_cpu,
                 const std::string& output_trace_dir,
                 const TraceUuid* trace_id,
-                bool use_audit);
+                bool use_audit,
+                bool detach_child_mode);
 
   virtual void on_create(Task* t) override;
 

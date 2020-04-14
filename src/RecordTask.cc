@@ -1234,6 +1234,20 @@ void RecordTask::unblock_signal(int sig) {
   invalidate_sigmask();
 }
 
+void RecordTask::apply_sighandlers_to(AutoRemoteSyscalls &remote) {
+  for (int sig = 1; sig < _NSIG; ++sig) {
+    if (sig == SIGSTOP || sig == SIGKILL) {
+      continue;
+    }
+    size_t sigset_size = sigaction_sigset_size(remote.arch());
+    const vector<uint8_t>& sa = this->signal_action(sig);
+    AutoRestoreMem child_sa(remote, sa.data(), sa.size());
+    remote.infallible_syscall(syscall_number_for_rt_sigaction(remote.arch()),
+                              sig, child_sa.get().as_int(), nullptr,
+                              sigset_size);
+  }
+}
+
 void RecordTask::set_sig_handler_default(int sig) {
   did_set_sig_handler_default(sig);
   // This could happen during a syscallbuf untraced syscall. In that case

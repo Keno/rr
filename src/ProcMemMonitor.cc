@@ -36,7 +36,7 @@ void ProcMemMonitor::did_write(Task* t, const std::vector<Range>& ranges,
     return;
   }
   auto* target = static_cast<RecordTask*>(t->session().find_task(tuid));
-  if (!target) {
+  if (!target || target->detached_proxy) {
     return;
   }
   int64_t offset = lazy_offset.retrieve(false);

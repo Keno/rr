@@ -71,7 +71,7 @@ Task::Task(Session& session, pid_t _tid, pid_t _rec_tid, uint32_t serial,
       desched_fd_child(-1),
       // This will be initialized when the syscall buffer is.
       cloned_file_data_fd_child(-1),
-      hpc(_tid, session.ticks_semantics()),
+      hpc(session.perf_counter_setup(), _tid, session.ticks_semantics()),
       tid(_tid),
       rec_tid(_rec_tid > 0 ? _rec_tid : _tid),
       syscallbuf_size(0),
@@ -408,7 +408,7 @@ void Task::emulate_jump(remote_code_ptr ip) {
   Registers r = regs();
   r.set_ip(ip);
   set_regs(r);
-  ticks += PerfCounters::ticks_for_unconditional_indirect_branch(this);
+  ticks += session().perf_counter_setup().ticks_for_unconditional_indirect_branch(this);
 }
 
 bool Task::is_desched_event_syscall() {
@@ -585,6 +585,8 @@ void Task::on_syscall_exit_arch(int syscallno, const Registers& regs) {
     case Arch::ptrace: {
       pid_t pid = (pid_t)regs.arg2_signed();
       Task* tracee = session().find_task(pid);
+      if (!tracee)
+        return;
       switch ((int)regs.arg1_signed()) {
         case PTRACE_SETREGS: {
           auto data = read_mem(
@@ -2284,8 +2286,9 @@ void Task::reset_syscallbuf() {
   uint32_t num_rec =
       read_mem(REMOTE_PTR_FIELD(syscallbuf_child, num_rec_bytes));
   uint8_t* ptr = as->local_mapping(syscallbuf_child + 1, num_rec);
-  DEBUG_ASSERT(ptr != nullptr);
-  memset(ptr, 0, num_rec);
+  if (ptr) {
+    memset(ptr, 0, num_rec);
+  }
   write_mem(REMOTE_PTR_FIELD(syscallbuf_child, num_rec_bytes), (uint32_t)0);
   write_mem(REMOTE_PTR_FIELD(syscallbuf_child, mprotect_record_count),
             (uint32_t)0);
@@ -2817,7 +2820,8 @@ static void run_initial_child(Session& session, const ScopedFd& error_fd,
                              const std::string& exe_path,
                              const std::vector<std::string>& argv,
                              const std::vector<std::string>& envp,
-                             pid_t rec_tid) {
+                             pid_t rec_tid,
+                             bool detach_child_mode) {
   DEBUG_ASSERT(session.tasks().size() == 0);
 
   int sockets[2];
@@ -2855,6 +2859,7 @@ static void run_initial_child(Session& session, const ScopedFd& error_fd,
   SeccompFilter<struct sock_filter> filter = create_seccomp_filter();
   struct sock_fprog prog = {(unsigned short)filter.filters.size(),
                             filter.filters.data()};
+  pid_t parent_pid = getpid();
   do {
     tid = fork();
     // fork() can fail with EAGAIN due to temporary load issues. In such
@@ -2862,6 +2867,22 @@ static void run_initial_child(Session& session, const ScopedFd& error_fd,
   } while (0 > tid && errno == EAGAIN);
 
   if (0 == tid) {
+    if (detach_child_mode) {
+      int ret = syscall(SYS_rrcall_detach_teleport, 0, 0, 0, 0, 0, 0);
+      if (ret < 0) {
+        spawned_child_fatal_error(error_fd, "Failed to detach from parent rr");
+      }
+      if (running_under_rr(false)) {
+        spawned_child_fatal_error(error_fd, "Detaching from parent rr did not work");
+      }
+      if (prctl(PR_SET_PTRACER, parent_pid) == -1) {
+        spawned_child_fatal_error(error_fd, "Failed to set ptracer");
+      }
+      // Child pid changed
+      pid_t pid = getpid();
+      write(sock, &pid, sizeof(pid_t));
+    }
+
     run_initial_child(session, error_fd, sock, fd_number, exe_path.c_str(),
                       argv_array.get(), envp_array.get(), prog);
     // run_initial_child never returns
@@ -2873,6 +2894,16 @@ static void run_initial_child(Session& session, const ScopedFd& error_fd,
 
   // Make sure the child has the only reference to this side of the pipe.
   error_fd.close();
+
+  // In detach child mode, the real child tid changed. An outer rr will try
+  // to emulate the wait state, but we don't want to rely on that being faithful
+  // to the kernel, so kind out what the real tid is
+  if (detach_child_mode) {
+    ssize_t nread = read(*sock_fd_out, &tid, sizeof(pid_t));
+    if (nread != sizeof(pid_t)) {
+      FATAL() << "Could not retrieve new child tid";
+    }
+  }
 
   // Sync with the child process.
   // We minimize the code we run between fork()ing and PTRACE_SEIZE, because
@@ -3046,6 +3077,9 @@ void Task::dup_from(Task *other) {
       child_fd = remote_this.send_fd(fd);
       remote_this.syscall(syscall_number_for_fchdir(this->arch()), child_fd);
       remote_this.syscall(syscall_number_for_close(this->arch()), child_fd);
+    }
+    if (other->session().is_recording()) {
+      static_cast<RecordTask*>(other)->apply_sighandlers_to(remote_this);
     }
   }
   copy_state(other->capture_state());

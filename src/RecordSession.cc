@@ -1923,7 +1923,8 @@ static string lookup_by_path(const string& name) {
     BindCPU bind_cpu,
     const string& output_trace_dir,
     const TraceUuid* trace_id,
-    bool use_audit) {
+    bool use_audit,
+    bool detach_child_mode) {
   // The syscallbuf library interposes some critical
   // external symbols like XShmQueryExtension(), so we
   // preload it whether or not syscallbuf is enabled. Indicate here whether
@@ -2017,7 +2018,8 @@ static string lookup_by_path(const string& name) {
   shr_ptr session(
       new RecordSession(full_path, argv, env, disable_cpuid_features,
                         syscallbuf, syscallbuf_desched_sig, bind_cpu,
-                        output_trace_dir, trace_id, use_audit));
+                        output_trace_dir, trace_id, use_audit,
+                        detach_child_mode));
   session->set_asan_active(!exe_info.libasan_path.empty() ||
                            exe_info.has_asan_symbols);
   return session;
@@ -2032,8 +2034,10 @@ RecordSession::RecordSession(const std::string& exe_path,
                              BindCPU bind_cpu,
                              const string& output_trace_dir,
                              const TraceUuid* trace_id,
-                             bool use_audit)
-    : trace_out(argv[0], choose_cpu(bind_cpu), output_trace_dir, ticks_semantics_),
+                             bool use_audit,
+                             bool detach_child_mode)
+    : Session(running_under_rr() && !detach_child_mode),
+      trace_out(argv[0], choose_cpu(bind_cpu), output_trace_dir, ticks_semantics_),
       scheduler_(*this),
       trace_id(trace_id),
       disable_cpuid_features_(disable_cpuid_features),
@@ -2063,7 +2067,8 @@ RecordSession::RecordSession(const std::string& exe_path,
   RecordTask* t = static_cast<RecordTask*>(
       Task::spawn(*this, error_fd, &tracee_socket_fd(),
                   &tracee_socket_fd_number,
-                  exe_path, argv, envp));
+                  exe_path, argv, envp, -1,
+                  detach_child_mode));
   // CPU affinity has been set.
   trace_out.setup_cpuid_records(has_cpuid_faulting(), disable_cpuid_features_);
 

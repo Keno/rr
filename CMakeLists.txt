@@ -1283,6 +1283,7 @@ set(TESTS_WITHOUT_PROGRAM
   post_exec_fpu_regs
   proc_maps
   read_bad_mem
+  record_record_detach_child
   record_replay
   remove_watchpoint
   replay_overlarge_event_number

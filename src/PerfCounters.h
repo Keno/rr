@@ -10,6 +10,7 @@
 #include <signal.h>
 #include <stdint.h>
 #include <sys/types.h>
+#include <linux/perf_event.h>
 
 #include "ScopedFd.h"
 #include "Ticks.h"
@@ -23,6 +24,38 @@ class Task;
 enum TicksSemantics {
   TICKS_RETIRED_CONDITIONAL_BRANCHES,
   TICKS_TAKEN_BRANCHES,
+};
+
+class PerfCounters;
+
+struct PerfCounterSetup {
+  // At some point we might support multiple kinds of ticks for the same CPU arch.
+  // At that point this will need to become more complicated.
+  struct perf_event_attr ticks_attr;
+  struct perf_event_attr minus_ticks_attr;
+  struct perf_event_attr cycles_attr;
+  struct perf_event_attr hw_interrupts_attr;
+  uint32_t pmu_flags;
+  uint32_t skid_size_;
+
+  PerfCounterSetup(bool virtual_perf_counters);
+  PerfCounterSetup(const PerfCounterSetup &other);
+  TicksSemantics default_ticks_semantics() const;
+  bool supports_ticks_semantics(TicksSemantics ticks_semantics) const;
+  Ticks ticks_for_unconditional_indirect_branch(Task*) const;
+  Ticks ticks_for_direct_call(Task*) const;
+  /**
+   * When an interrupt is requested, at most this many ticks may elapse before
+   * the interrupt is delivered.
+   */
+  uint32_t skid_size() const;
+
+  /**
+   * Use a separate skid_size for recording since we seem to see more skid
+   * in practice during recording, in particular during the
+   * async_signal_syscalls tests
+   */
+  uint32_t recording_skid_size() const { return skid_size() * 5; }
 };
 
 /**
@@ -42,7 +75,7 @@ public:
   /**
    * Create performance counters monitoring the given task.
    */
-  PerfCounters(pid_t tid, TicksSemantics ticks_semantics);
+  PerfCounters(const PerfCounterSetup &setup, pid_t tid, TicksSemantics ticks_semantics);
   ~PerfCounters() { stop(); }
 
   void set_tid(pid_t tid);
@@ -72,15 +105,6 @@ public:
   void stop_counting();
 
   /**
-   * Return the number of ticks we need for an emulated branch.
-   */
-  static Ticks ticks_for_unconditional_indirect_branch(Task*);
-  /**
-   * Return the number of ticks we need for a direct call.
-   */
-  static Ticks ticks_for_direct_call(Task*);
-
-  /**
    * Read the current value of the ticks counter.
    * `t` is used for debugging purposes.
    */
@@ -102,24 +126,8 @@ public:
 
   static bool is_rr_ticks_attr(const perf_event_attr& attr);
 
-  static bool supports_ticks_semantics(TicksSemantics ticks_semantics);
-
-  static TicksSemantics default_ticks_semantics();
-
-  /**
-   * When an interrupt is requested, at most this many ticks may elapse before
-   * the interrupt is delivered.
-   */
-  static uint32_t skid_size();
-
-  /**
-   * Use a separate skid_size for recording since we seem to see more skid
-   * in practice during recording, in particular during the
-   * async_signal_syscalls tests
-   */
-  static uint32_t recording_skid_size() { return skid_size() * 5; }
-
 private:
+  const PerfCounterSetup &setup;
   // Only valid while 'counting' is true
   Ticks counting_period;
   pid_t tid;

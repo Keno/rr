@@ -894,7 +894,9 @@ public:
                      ScopedFd* sock_fd_out, int* tracee_socket_fd_number_out,
                      const std::string& exe_path,
                      const std::vector<std::string>& argv,
-                     const std::vector<std::string>& envp, pid_t rec_tid = -1);
+                     const std::vector<std::string>& envp,
+                     pid_t rec_tid = -1,
+                     bool detached_child_mode = false);
 
 protected:
   Task(Session& session, pid_t tid, pid_t rec_tid, uint32_t serial,

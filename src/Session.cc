@@ -41,15 +41,17 @@ struct Session::CloneCompletion {
   vector<AddressSpaceClone> address_spaces;
 };
 
-Session::Session()
+Session::Session(bool virtual_perf_counters)
     : tracee_socket(shared_ptr<ScopedFd>(new ScopedFd())),
       tracee_socket_fd_number(0),
       next_task_serial_(1),
       rrcall_base_(RR_CALL_BASE),
       syscall_seccomp_ordering_(PTRACE_SYSCALL_BEFORE_SECCOMP_UNKNOWN),
-      ticks_semantics_(PerfCounters::default_ticks_semantics()),
+      setup(virtual_perf_counters),
       done_initial_exec_(false),
-      visible_execution_(true) {
+      visible_execution_(true)
+      {
+  ticks_semantics_ = setup.default_ticks_semantics();
   LOG(debug) << "Session " << this << " created";
 }
 
@@ -62,7 +64,9 @@ Session::~Session() {
   }
 }
 
-Session::Session(const Session& other) {
+Session::Session(const Session& other) :
+  setup(other.setup)
+{
   statistics_ = other.statistics_;
   next_task_serial_ = other.next_task_serial_;
   done_initial_exec_ = other.done_initial_exec_;
@@ -224,7 +228,7 @@ void Session::kill_all_tasks() {
           continue;
         }
       }
-      if (t->is_waiting_for_reap()) {
+      if (t->already_exited()) {
         /* We've already seeing the PTRACE_EXIT_EVENT for this task.
          * We were just waiting for one of the other traced tasks, to
          * reap it, but that ain't gonna happen, now. It'll get deleted

@@ -4,7 +4,6 @@
 
 #include <err.h>
 #include <fcntl.h>
-#include <linux/perf_event.h>
 #include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,15 +30,6 @@ namespace rr {
 
 #define PERF_COUNT_RR 0x72727272L
 
-static bool attributes_initialized;
-// At some point we might support multiple kinds of ticks for the same CPU arch.
-// At that point this will need to become more complicated.
-static struct perf_event_attr ticks_attr;
-static struct perf_event_attr minus_ticks_attr;
-static struct perf_event_attr cycles_attr;
-static struct perf_event_attr hw_interrupts_attr;
-static uint32_t pmu_flags;
-static uint32_t skid_size;
 static bool has_ioc_period_bug;
 static bool has_kvm_in_txcp_bug;
 static bool has_xen_pmi_bug;
@@ -319,9 +309,9 @@ static ScopedFd start_counter(pid_t tid, int group_fd,
   return fd;
 }
 
-static void check_for_ioc_period_bug() {
+static void check_for_ioc_period_bug(const PerfCounterSetup &setup) {
   // Start a cycles counter
-  struct perf_event_attr attr = rr::ticks_attr;
+  struct perf_event_attr attr = setup.ticks_attr;
   attr.sample_period = 0xffffffff;
   attr.exclude_kernel = 1;
   ScopedFd bug_fd = start_counter(0, -1, &attr);
@@ -353,9 +343,9 @@ static void do_branches() {
   accumulator_sink = accumulator;
 }
 
-static void check_for_kvm_in_txcp_bug() {
+static void check_for_kvm_in_txcp_bug(const PerfCounterSetup &setup) {
   int64_t count = 0;
-  struct perf_event_attr attr = rr::ticks_attr;
+  struct perf_event_attr attr = setup.ticks_attr;
   attr.config |= IN_TXCP;
   attr.sample_period = 0;
   bool disabled_txcp;
@@ -374,9 +364,9 @@ static void check_for_kvm_in_txcp_bug() {
              << " count=" << count;
 }
 
-static void check_for_xen_pmi_bug() {
+static void check_for_xen_pmi_bug(const PerfCounterSetup &setup) {
   int32_t count = -1;
-  struct perf_event_attr attr = rr::ticks_attr;
+  struct perf_event_attr attr = setup.ticks_attr;
   attr.sample_period = NUM_BRANCHES - 1;
   ScopedFd fd = start_counter(0, -1, &attr);
   if (fd.is_open()) {
@@ -517,10 +507,10 @@ static void check_for_xen_pmi_bug() {
   }
 }
 
-static void check_working_counters() {
-  struct perf_event_attr attr = rr::ticks_attr;
+static void check_working_counters(const PerfCounterSetup &setup) {
+  struct perf_event_attr attr = setup.ticks_attr;
   attr.sample_period = 0;
-  struct perf_event_attr attr2 = rr::cycles_attr;
+  struct perf_event_attr attr2 = setup.cycles_attr;
   attr.sample_period = 0;
   ScopedFd fd = start_counter(0, -1, &attr);
   ScopedFd fd2 = start_counter(0, -1, &attr2);
@@ -530,7 +520,7 @@ static void check_working_counters() {
 
   if (events < NUM_BRANCHES) {
     char config[100];
-    sprintf(config, "%llx", (long long)ticks_attr.config);
+    sprintf(config, "%llx", (long long)setup.ticks_attr.config);
     FATAL()
         << "\nGot " << events << " branch events, expected at least "
         << NUM_BRANCHES
@@ -562,25 +552,21 @@ static void check_working_counters() {
   }
 }
 
-static void check_for_bugs() {
+static void check_for_bugs(const PerfCounterSetup &setup) {
   if (running_under_rr()) {
-    // Under rr we emulate idealized performance counters, so we can assume
-    // none of the bugs apply.
+    // Under rr we either emulate idealized performance counters, or the
+    // outer rr has already checked this for us. Either way - we don't care
     return;
   }
 
-  check_for_ioc_period_bug();
-  check_for_kvm_in_txcp_bug();
-  check_for_xen_pmi_bug();
-  check_working_counters();
+  check_for_ioc_period_bug(setup);
+  check_for_kvm_in_txcp_bug(setup);
+  check_for_xen_pmi_bug(setup);
+  check_working_counters(setup);
 }
 
-static void init_attributes() {
-  if (attributes_initialized) {
-    return;
-  }
-  attributes_initialized = true;
-
+PerfCounterSetup::PerfCounterSetup(bool virtual_perf_counters) {
+  memset(this, 0, sizeof(*this));
   CpuMicroarch uarch = get_cpu_microarch();
   const PmuConfig* pmu = nullptr;
   for (size_t i = 0; i < array_length(pmu_configs); ++i) {
@@ -595,12 +581,12 @@ static void init_attributes() {
     FATAL() << "Microarchitecture `" << pmu->name << "' currently unsupported.";
   }
 
-  if (running_under_rr()) {
+  if (virtual_perf_counters) {
     init_perf_event_attr(&ticks_attr, PERF_TYPE_HARDWARE, PERF_COUNT_RR);
-    skid_size = RR_SKID_MAX;
+    skid_size_ = RR_SKID_MAX;
     pmu_flags = pmu->flags & (PMU_TICKS_RCB | PMU_TICKS_TAKEN_BRANCHES);
   } else {
-    skid_size = pmu->skid_size;
+    skid_size_ = pmu->skid_size;
     pmu_flags = pmu->flags;
     init_perf_event_attr(&ticks_attr, PERF_TYPE_RAW, pmu->rcb_cntr_event);
     if (pmu->minus_ticks_cntr_event != 0) {
@@ -616,7 +602,7 @@ static void init_attributes() {
     hw_interrupts_attr.exclude_hv = 1;
 
     if (!(pmu_flags & PMU_SKIP_INTEL_BUG_CHECK)) {
-      check_for_bugs();
+      check_for_bugs(*this);
     }
     /*
      * For maintainability, and since it doesn't impact performance when not
@@ -633,12 +619,15 @@ static void init_attributes() {
   }
 }
 
+PerfCounterSetup::PerfCounterSetup(const PerfCounterSetup &other) {
+  memcpy(this, &other, sizeof(*this));
+}
+
 bool PerfCounters::is_rr_ticks_attr(const perf_event_attr& attr) {
   return attr.type == PERF_TYPE_HARDWARE && attr.config == PERF_COUNT_RR;
 }
 
-bool PerfCounters::supports_ticks_semantics(TicksSemantics ticks_semantics) {
-  init_attributes();
+bool PerfCounterSetup::supports_ticks_semantics(TicksSemantics ticks_semantics) const {
   switch (ticks_semantics) {
   case TICKS_RETIRED_CONDITIONAL_BRANCHES:
     return (pmu_flags & PMU_TICKS_RCB) != 0;
@@ -650,8 +639,7 @@ bool PerfCounters::supports_ticks_semantics(TicksSemantics ticks_semantics) {
   }
 }
 
-TicksSemantics PerfCounters::default_ticks_semantics() {
-  init_attributes();
+TicksSemantics PerfCounterSetup::default_ticks_semantics() const {
   if (pmu_flags & PMU_TICKS_TAKEN_BRANCHES) {
     return TICKS_TAKEN_BRANCHES;
   }
@@ -662,14 +650,13 @@ TicksSemantics PerfCounters::default_ticks_semantics() {
   return TICKS_TAKEN_BRANCHES;
 }
 
-uint32_t PerfCounters::skid_size() {
-  init_attributes();
-  return rr::skid_size;
+uint32_t PerfCounterSetup::skid_size() const {
+  return skid_size_;
 }
 
-PerfCounters::PerfCounters(pid_t tid, TicksSemantics ticks_semantics)
-    : tid(tid), ticks_semantics_(ticks_semantics), started(false), counting(false) {
-  if (!supports_ticks_semantics(ticks_semantics)) {
+PerfCounters::PerfCounters(const PerfCounterSetup &setup, pid_t tid, TicksSemantics ticks_semantics)
+    : setup(setup), tid(tid), ticks_semantics_(ticks_semantics), started(false), counting(false) {
+  if (!setup.supports_ticks_semantics(ticks_semantics)) {
     FATAL() << "Ticks semantics " << ticks_semantics << " not supported";
   }
 }
@@ -699,8 +686,8 @@ void PerfCounters::reset(Ticks ticks_period) {
   if (!started) {
     LOG(debug) << "Recreating counters with period " << ticks_period;
 
-    struct perf_event_attr attr = rr::ticks_attr;
-    struct perf_event_attr minus_attr = rr::minus_ticks_attr;
+    struct perf_event_attr attr = setup.ticks_attr;
+    struct perf_event_attr minus_attr = setup.minus_ticks_attr;
     attr.sample_period = ticks_period;
     fd_ticks_interrupt = start_counter(tid, -1, &attr);
     if (minus_attr.config != 0) {
@@ -738,6 +725,7 @@ void PerfCounters::reset(Ticks ticks_period) {
     if (activate_useless_counter && !fd_useless_counter.is_open()) {
       // N.B.: This is deliberately not in the same group as the other counters
       // since we want to keep it scheduled at all times.
+      struct perf_event_attr cycles_attr = setup.cycles_attr;
       fd_useless_counter = start_counter(tid, -1, &cycles_attr);
     }
 
@@ -831,11 +819,11 @@ void PerfCounters::stop_counting() {
   }
 }
 
-Ticks PerfCounters::ticks_for_unconditional_indirect_branch(Task*) {
+Ticks PerfCounterSetup::ticks_for_unconditional_indirect_branch(Task*) const {
   return (pmu_flags & PMU_TICKS_TAKEN_BRANCHES) ? 1 : 0;
 }
 
-Ticks PerfCounters::ticks_for_direct_call(Task*) {
+Ticks PerfCounterSetup::ticks_for_direct_call(Task*) const {
   return (pmu_flags & PMU_TICKS_TAKEN_BRANCHES) ? 1 : 0;
 }
 
@@ -862,7 +850,7 @@ Ticks PerfCounters::read_ticks(Task* t) {
 
   uint64_t adjusted_counting_period =
       counting_period +
-      (t->session().is_recording() ? recording_skid_size() : skid_size());
+      (t->session().is_recording() ? setup.recording_skid_size() : setup.skid_size());
   uint64_t interrupt_val = read_counter(fd_ticks_interrupt);
   if (!fd_ticks_measure.is_open()) {
     if (fd_minus_ticks_measure.is_open()) {
