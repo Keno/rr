@@ -27,6 +27,11 @@ def write_rr_page(f, is_64, is_replay):
         0x31, 0xc0, # xor %eax,%eax
         0xc3, # ret
     ])
+    trap_bytes = bytearray([
+        0x90, # nop
+        0xcc, # int3
+        0xc3, # ret
+    ])
 
     # traced
     f.write(bytes)
@@ -56,6 +61,12 @@ def write_rr_page(f, is_64, is_replay):
     # privileged untraced record-only
     if is_replay:
         f.write(nocall_bytes)
+    else:
+        f.write(bytes)
+
+    # untraced replay assist
+    if is_replay:
+        f.write(trap_bytes)
     else:
         f.write(bytes)
 

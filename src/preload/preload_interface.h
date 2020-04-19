@@ -122,7 +122,8 @@ static inline const char* extract_file_name(const char* s) {
 #define RR_PAGE_SYSCALL_PRIVILEGED_UNTRACED_REPLAY_ONLY RR_PAGE_SYSCALL_ADDR(6)
 #define RR_PAGE_SYSCALL_PRIVILEGED_UNTRACED_RECORDING_ONLY                     \
   RR_PAGE_SYSCALL_ADDR(7)
-#define RR_PAGE_FF_BYTES (RR_PAGE_ADDR + RR_PAGE_SYSCALL_STUB_SIZE * 8)
+#define RR_PAGE_SYSCALL_UNTRACED_REPLAY_ASSIST RR_PAGE_SYSCALL_ADDR(8)
+#define RR_PAGE_FF_BYTES (RR_PAGE_ADDR + RR_PAGE_SYSCALL_STUB_SIZE * 9)
 
 /* PRELOAD_THREAD_LOCALS_ADDR should not change.
  * Tools depend on this address. */
@@ -434,6 +435,24 @@ struct preload_thread_locals {
   PTR(struct msghdr) notify_control_msg;
 };
 
+// The set of flags that can be set for each fd in syscallbuf_fds_disabled.
+enum syscallbuf_fd_flags_mask {
+  // Absent any other flags specifying special handling, this operation should
+  // always be traced.
+  FD_FLAG_TRACE_ALL = 0x1,
+  // pwrites to this fd may proceed untraced during record, but
+  // require an assist during replay
+  FD_FLAG_PWRITE_REPLAY_ASSIST = 0x3,
+  // Writes to this FD will not block
+  // N.B.: At the moment this shares a flag value with
+  // FD_FLAG_WRITE_REPLAY_ASSIST. This may be separated in the future.
+  FD_FLAG_WRITE_WONT_BLOCK = 0x2,
+
+  MAX_FLAGS_SUPPORTED = 0x3
+};
+
+#define CURRENT_INIT_PRELOAD_PARAMS_VERSION 2
+
 /**
  * Packs up the parameters passed to |SYS_rrcall_init_preload|.
  * We use this struct because it's a little cleaner.
@@ -441,10 +460,10 @@ struct preload_thread_locals {
 TEMPLATE_ARCH
 struct rrcall_init_preload_params {
   /* All "In" params. */
-  /* The syscallbuf lib's idea of whether buffering is enabled.
+  /* The version of this struct, or 0 if disabled.
    * We let the syscallbuf code decide in order to more simply
    * replay the same decision that was recorded. */
-  int syscallbuf_enabled;
+  int syscallbuf_version;
   int syscall_patch_hook_count;
   PTR(struct syscall_patch_hook) syscall_patch_hooks;
   PTR(void) syscallhook_vsyscall_entry;
@@ -472,6 +491,10 @@ struct rrcall_init_preload_params {
       int breakpoint_mode_sentinel;
     };
   };
+  // Version 1 ends here
+  struct {
+    uint8_t fd_flags_supported;
+  } version2;
 };
 
 /**
@@ -517,7 +540,10 @@ struct syscallbuf_record {
   uint16_t syscallno;
   /* Did the tracee arm/disarm the desched notification for this
    * syscall? */
-  uint8_t desched;
+  uint8_t desched : 1;
+  /* Does this record require an assist during replay ? */
+  uint8_t replay_assist : 1;
+  uint8_t _flags_padding : 6;
   uint8_t _padding;
   /* Size of entire record in bytes: this struct plus extra
    * recorded data stored inline after the last field, not

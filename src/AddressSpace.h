@@ -654,6 +654,10 @@ public:
   }
 
   bool syscallbuf_enabled() const { return syscallbuf_enabled_; }
+  uint8_t supported_fd_flags() const {
+    DEBUG_ASSERT(syscallbuf_enabled());
+    return tracee_supported_fd_flags_;
+  }
 
   /**
    * We'll map a page of memory here into every exec'ed process for our own
@@ -678,7 +682,7 @@ public:
 
   enum Traced { TRACED, UNTRACED };
   enum Privileged { PRIVILEGED, UNPRIVILEGED };
-  enum Enabled { RECORDING_ONLY, REPLAY_ONLY, RECORDING_AND_REPLAY };
+  enum Enabled { RECORDING_ONLY, REPLAY_ONLY, RECORDING_AND_REPLAY, REPLAY_ASSIST };
   static remote_code_ptr rr_page_syscall_exit_point(Traced traced,
                                                     Privileged privileged,
                                                     Enabled enabled);
@@ -1071,6 +1075,8 @@ private:
   remote_code_ptr traced_syscall_ip_;
   remote_code_ptr privileged_traced_syscall_ip_;
   bool syscallbuf_enabled_;
+
+  uint8_t tracee_supported_fd_flags_;
 
   remote_code_ptr do_breakpoint_fault_addr_;
   // These fields are deprecated and have been replaced by the

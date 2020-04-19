@@ -119,6 +119,10 @@ public:
    * if desired.
    */
   virtual void filter_getdents(RecordTask*) {}
+
+  virtual uint8_t get_syscallbuf_flags() {
+    return FD_FLAG_TRACE_ALL;
+  }
 };
 
 } // namespace rr

@@ -355,6 +355,8 @@ static const AddressSpace::SyscallType entry_points[] = {
     AddressSpace::REPLAY_ONLY },
   { AddressSpace::UNTRACED, AddressSpace::PRIVILEGED,
     AddressSpace::RECORDING_ONLY },
+  { AddressSpace::UNTRACED, AddressSpace::UNPRIVILEGED,
+    AddressSpace::REPLAY_ASSIST },
 };
 
 static remote_code_ptr entry_ip_from_index(size_t i) {
@@ -682,9 +684,9 @@ template <typename Arch> void AddressSpace::at_preload_init_arch(Task* t) {
   if (t->session().is_recording()) {
     ASSERT(t,
            t->session().as_record()->use_syscall_buffer() ==
-               params.syscallbuf_enabled)
+               !!params.syscallbuf_version)
         << "Tracee thinks syscallbuf is "
-        << (params.syscallbuf_enabled ? "en" : "dis")
+        << (params.syscallbuf_version ? "en" : "dis")
         << "abled, but tracer thinks "
         << (t->session().as_record()->use_syscall_buffer() ? "en" : "dis")
         << "abled";
@@ -698,8 +700,13 @@ template <typename Arch> void AddressSpace::at_preload_init_arch(Task* t) {
     }
   }
 
-  if (!params.syscallbuf_enabled) {
+  if (!params.syscallbuf_version) {
     return;
+  }
+
+  tracee_supported_fd_flags_ = FD_FLAG_TRACE_ALL;
+  if (params.syscallbuf_version >= 2) {
+    tracee_supported_fd_flags_ = params.version2.fd_flags_supported;
   }
 
   syscallbuf_enabled_ = true;
@@ -1513,6 +1520,7 @@ AddressSpace::AddressSpace(Session* session, const AddressSpace& o,
       privileged_traced_syscall_ip_(o.privileged_traced_syscall_ip_),
       syscallbuf_enabled_(o.syscallbuf_enabled_),
       do_breakpoint_fault_addr_(o.do_breakpoint_fault_addr_),
+      tracee_supported_fd_flags_(o.tracee_supported_fd_flags_),
       stopping_breakpoint_table_(o.stopping_breakpoint_table_),
       stopping_breakpoint_table_entry_size_(o.stopping_breakpoint_table_entry_size_),
       saved_auxv_(o.saved_auxv_),

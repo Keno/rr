@@ -25,6 +25,10 @@ public:
   virtual void did_write(Task* t, const std::vector<Range>& ranges,
                          LazyOffset& lazy_offset) override;
 
+  virtual uint8_t get_syscallbuf_flags() {
+    return FD_FLAG_PWRITE_REPLAY_ASSIST | FD_FLAG_WRITE_WONT_BLOCK;
+  }
+
 private:
   // 0 if this doesn't object doesn't refer to a tracee's proc-mem.
   TaskUid tuid;

@@ -122,16 +122,18 @@ FileMonitor* FdTable::get_monitor(int fd) {
   return it->second.get();
 }
 
-static bool is_fd_monitored_in_any_task(AddressSpace* vm, int fd) {
+static uint8_t join_fd_flags_over_tasks(AddressSpace* vm, int fd) {
+  uint8_t flags = 0;
   for (Task* t : vm->task_set()) {
     auto table = t->fd_table();
-    if (table->is_monitoring(fd) ||
-        (fd >= SYSCALLBUF_FDS_DISABLED_SIZE - 1 &&
-         table->count_beyond_limit() > 0)) {
-      return true;
+    if (table->is_monitoring(fd)) {
+      flags |= table->get_monitor(fd)->get_syscallbuf_flags();
+    } else if (fd >= SYSCALLBUF_FDS_DISABLED_SIZE - 1 &&
+        table->count_beyond_limit() > 0) {
+      return MAX_FLAGS_SUPPORTED;
     }
   }
-  return false;
+  return flags;
 }
 
 void FdTable::update_syscallbuf_fds_disabled(int fd) {
@@ -157,7 +159,7 @@ void FdTable::update_syscallbuf_fds_disabled(int fd) {
       if (fd >= SYSCALLBUF_FDS_DISABLED_SIZE) {
         fd = SYSCALLBUF_FDS_DISABLED_SIZE - 1;
       }
-      char disable = (char)is_fd_monitored_in_any_task(vm, fd);
+      char disable = (char)join_fd_flags_over_tasks(vm, fd);
       auto addr =
           REMOTE_PTR_FIELD(t->preload_globals, syscallbuf_fds_disabled[0]) + fd;
       rt->write_mem(addr, disable);
@@ -190,8 +192,9 @@ void FdTable::init_syscallbuf_fds_disabled(Task* t) {
       DEBUG_ASSERT(fd >= 0);
       if (fd >= SYSCALLBUF_FDS_DISABLED_SIZE) {
         fd = SYSCALLBUF_FDS_DISABLED_SIZE - 1;
+        disabled[fd] |= MAX_FLAGS_SUPPORTED;
       }
-      disabled[fd] = 1;
+      disabled[fd] |= it.second->get_syscallbuf_flags();
     }
   }
 
