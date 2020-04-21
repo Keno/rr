@@ -5643,10 +5643,13 @@ static void rec_process_syscall_arch(RecordTask* t,
     case Arch::mprotect: {
       // Restore the registers that we may have altered.
       Registers r = t->regs();
-      r.set_arg1(syscall_state.syscall_entry_registers.arg1());
-      r.set_arg2(syscall_state.syscall_entry_registers.arg2());
-      r.set_arg3(syscall_state.syscall_entry_registers.arg3());
-      t->set_regs(r);
+      bool modified = false;
+      modified |= r.set_arg1(syscall_state.syscall_entry_registers.arg1());
+      modified |= r.set_arg2(syscall_state.syscall_entry_registers.arg2());
+      modified |= r.set_arg3(syscall_state.syscall_entry_registers.arg3());
+      if (modified) {
+        t->set_regs(r);
+      }
       break;
     }
 

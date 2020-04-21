@@ -1599,10 +1599,10 @@ void Task::canonicalize_regs(SupportedArch syscall_arch) {
       // which, though possible, does not appear to actually be done by any
       // real application (contrary to int $0x80, which is accessible from 64bit
       // mode as well).
-      registers.set_r8(0x0);
-      registers.set_r9(0x0);
-      registers.set_r10(0x0);
-      registers.set_r11(0x0);
+      registers_dirty |= registers.set_r8(0x0);
+      registers_dirty |= registers.set_r9(0x0);
+      registers_dirty |= registers.set_r10(0x0);
+      registers_dirty |= registers.set_r11(0x0);
     } else {
       // x86-64 'syscall' instruction copies RFLAGS to R11 on syscall entry.
       // If we single-stepped into the syscall instruction, the TF flag will be
@@ -1617,7 +1617,7 @@ void Task::canonicalize_regs(SupportedArch syscall_arch) {
       // Ubuntu/Debian kernels.
       // Making this match the flags makes this operation idempotent, which is
       // helpful.
-      registers.set_r11(0x246);
+      registers_dirty |= registers.set_r11(0x246);
       // x86-64 'syscall' instruction copies return address to RCX on syscall
       // entry. rr-related kernel activity normally sets RCX to -1 at some point
       // during syscall execution, but apparently in some (unknown) situations
@@ -1628,7 +1628,7 @@ void Task::canonicalize_regs(SupportedArch syscall_arch) {
       // want to clobber that.
       // For untraced syscalls, the untraced-syscall entry point code (see
       // write_rr_page) does this itself.
-      registers.set_cx((intptr_t)-1);
+      registers_dirty |= registers.set_cx((intptr_t)-1);
     }
     // On kernel 3.13.0-68-generic #111-Ubuntu SMP we have observed a failed
     // execve() clearing all flags during recording. During replay we emulate
@@ -1636,7 +1636,7 @@ void Task::canonicalize_regs(SupportedArch syscall_arch) {
     // consistent.
     // 0x246 is ZF+PF+IF+reserved, the result clearing a register using
     // "xor reg, reg".
-    registers.set_flags(0x246);
+    registers_dirty |= registers.set_flags(0x246);
   } else if (registers.arch() == x86) {
     // The x86 SYSENTER handling in Linux modifies EBP and EFLAGS on entry.
     // EBP is the potential sixth syscall parameter, stored on the user stack.
@@ -1645,7 +1645,7 @@ void Task::canonicalize_regs(SupportedArch syscall_arch) {
     // In a VMWare guest, the modifications to EFLAGS appear to be
     // nondeterministic. Cover that up by setting EFLAGS to reasonable values
     // now.
-    registers.set_flags(0x246);
+    registers_dirty |= registers.set_flags(0x246);
   }
 
   registers_dirty = true;

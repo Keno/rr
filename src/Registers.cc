@@ -590,18 +590,8 @@ uintptr_t Registers::flags() const {
   }
 }
 
-void Registers::set_flags(uintptr_t value) {
-  switch (arch()) {
-    case x86:
-      u.x86regs.eflags = value;
-      break;
-    case x86_64:
-      u.x64regs.eflags = value;
-      break;
-    default:
-      DEBUG_ASSERT(0 && "Unknown arch");
-      break;
-  }
+bool Registers::set_flags(uintptr_t value) {
+  return RR_SET_REG(eflags, eflags, value);
 }
 
 bool Registers::syscall_failed() const {
