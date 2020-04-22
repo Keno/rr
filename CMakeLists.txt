@@ -65,8 +65,11 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${FLAGS_COMMON} -Wstrict-prototypes -std=gnu
 # Define __STDC_LIMIT_MACROS so |#include <stdint.h>| works as expected.
 # Define __STDC_FORMAT_MACROS so |#include <inttypes.h>| works as expected.
 include(CheckCXXCompilerFlag)
+CHECK_CXX_COMPILER_FLAG("-std=c++17" SUPPORTS_CXX17)
 CHECK_CXX_COMPILER_FLAG("-std=c++14" SUPPORTS_CXX14)
-if (SUPPORTS_CXX14)
+if (SUPPORTS_CXX17)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${FLAGS_COMMON} -D__STDC_LIMIT_MACROS -D__STDC_FORMAT_MACROS -std=c++17")
+elseif(SUPPORTS_CXX14)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${FLAGS_COMMON} -D__STDC_LIMIT_MACROS -D__STDC_FORMAT_MACROS -std=c++14")
 else()
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${FLAGS_COMMON} -D__STDC_LIMIT_MACROS -D__STDC_FORMAT_MACROS -std=c++11")
@@ -572,10 +575,19 @@ if(strip)
   set(RR_MAIN_LINKER_FLAGS "-s ${RR_MAIN_LINKER_FLAGS}")
 endif()
 
+if(SUPPORTS_CXX17)
+  set_target_properties(rr PROPERTIES LINK_FLAGS "-std=c++17")
+endif()
+
+if(CMAKE_COMPILER_IS_GNUCC AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9.0)
+  set(STDCXXFS -lstdc++fs)
+endif()
+
 target_link_libraries(rr
   ${CMAKE_DL_LIBS}
   -lrt
   brotli
+  ${STDCXXFS}
 )
 
 if(staticlibs)
