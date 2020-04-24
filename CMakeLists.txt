@@ -547,6 +547,10 @@ if(strip)
   set_target_properties(rr PROPERTIES LINK_FLAGS "-s")
 endif()
 
+if(SUPPORTS_CXX17)
+  set_target_properties(rr PROPERTIES LINK_FLAGS "-std=c++17")
+endif()
+
 target_link_libraries(rr
   ${CMAKE_DL_LIBS}
   -lrt
