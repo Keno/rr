@@ -524,6 +524,13 @@ public:
   /** Set the tracee's registers to |regs|. Lazy. */
   void set_regs(const Registers& regs);
 
+  /** While stopped in a syscall, change the syscallno that is to be executed.
+    * How this is accomplished depends on the architecture. Registers may be
+    * modified
+    */
+  void change_syscallno(int new_syscallno);
+  int current_syscallno();
+
   /** Ensure registers are flushed back to the underlying task. */
   void flush_regs();
 
@@ -745,6 +752,8 @@ public:
    * Calls open_mem_fd if this task's AddressSpace doesn't already have one.
    */
   void open_mem_fd_if_needed();
+
+  void seccomp_was_enabled() { seccomp_bpf_enabled = true; }
 
   /* Imagine that task A passes buffer |b| to the read()
    * syscall.  Imagine that, after A is switched out for task B,

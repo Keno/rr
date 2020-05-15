@@ -438,17 +438,23 @@ bool ExtraRegisters::set_to_raw_data(SupportedArch a, Format format,
 
 vector<uint8_t> ExtraRegisters::get_user_fpregs_struct(
     SupportedArch arch) const {
-  DEBUG_ASSERT(format_ == XSAVE);
   switch (arch) {
     case x86:
+      DEBUG_ASSERT(format_ == XSAVE);
       DEBUG_ASSERT(data_.size() >= sizeof(X86Arch::user_fpxregs_struct));
       return to_vector(convert_fxsave_to_x86_fpregs(
           *reinterpret_cast<const X86Arch::user_fpxregs_struct*>(
               data_.data())));
     case x86_64:
+      DEBUG_ASSERT(format_ == XSAVE);
       DEBUG_ASSERT(data_.size() >= sizeof(X64Arch::user_fpregs_struct));
       return to_vector(
           *reinterpret_cast<const X64Arch::user_fpregs_struct*>(data_.data()));
+    case aarch64:
+      DEBUG_ASSERT(format_ == ARM_FPR);
+      DEBUG_ASSERT(data_.size() >= sizeof(AA64Arch::user_fpregs_struct));
+      return to_vector(
+          *reinterpret_cast<const AA64Arch::user_fpregs_struct*>(data_.data()));
     default:
       DEBUG_ASSERT(0 && "Unknown arch");
       return vector<uint8_t>();
@@ -501,32 +507,43 @@ static void set_word(SupportedArch arch, vector<uint8_t>& v, GdbRegister r,
 }
 
 void ExtraRegisters::reset() {
-  DEBUG_ASSERT(format_ == XSAVE);
   memset(data_.data(), 0, data_.size());
-  switch (arch()) {
-    case x86_64: {
-      set_word(arch(), data_, DREG_64_MXCSR, 0x1f80);
-      set_word(arch(), data_, DREG_64_FCTRL, 0x37f);
-      break;
+  if (arch() == x86_64 || arch() == x86_64) {
+    DEBUG_ASSERT(format_ == XSAVE);
+    switch (arch()) {
+      case x86_64: {
+        set_word(arch(), data_, DREG_64_MXCSR, 0x1f80);
+        set_word(arch(), data_, DREG_64_FCTRL, 0x37f);
+        break;
+      }
+      case x86: {
+        DEBUG_ASSERT(format_ == XSAVE);
+        set_word(arch(), data_, DREG_MXCSR, 0x1f80);
+        set_word(arch(), data_, DREG_FCTRL, 0x37f);
+        break;
+      }
+      default:
+        __builtin_unreachable();
     }
-    case x86: {
-      set_word(arch(), data_, DREG_MXCSR, 0x1f80);
-      set_word(arch(), data_, DREG_FCTRL, 0x37f);
-      break;
+    uint64_t xinuse;
+    if (data_.size() >= xinuse_offset + sizeof(xinuse)) {
+      /* We have observed (Skylake, Linux 4.10) the system setting XINUSE's 0 bit
+      * to indicate x87-in-use, at times unrelated to x87 actually being used.
+      * Work around this by setting the bit unconditionally after exec.
+      */
+      memcpy(&xinuse, data_.data() + xinuse_offset, sizeof(xinuse));
+      xinuse |= 1;
+      memcpy(data_.data() + xinuse_offset, &xinuse, sizeof(xinuse));
     }
-    default:
-      DEBUG_ASSERT(0 && "Unknown arch");
-      break;
-  }
-  uint64_t xinuse;
-  if (data_.size() >= xinuse_offset + sizeof(xinuse)) {
-    /* We have observed (Skylake, Linux 4.10) the system setting XINUSE's 0 bit
-     * to indicate x87-in-use, at times unrelated to x87 actually being used.
-     * Work around this by setting the bit unconditionally after exec.
-     */
-    memcpy(&xinuse, data_.data() + xinuse_offset, sizeof(xinuse));
-    xinuse |= 1;
-    memcpy(data_.data() + xinuse_offset, &xinuse, sizeof(xinuse));
+  } else {
+    switch (arch()) {
+      case aarch64:
+        DEBUG_ASSERT(format_ == ARM_FPR);
+        break;
+      default:
+        DEBUG_ASSERT(0 && "Unknown arch");
+        break;
+    }
   }
 }
 

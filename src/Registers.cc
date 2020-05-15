@@ -154,9 +154,30 @@ RegisterInfo<rr::X64Arch>::Table RegisterInfo<rr::X64Arch>::registers = {
 
 #undef RV_X64
 #undef RV_X86
-#undef RV_ARCH
 
-RegisterInfo<rr::AA64Arch>::Table RegisterInfo<rr::AA64Arch>::registers = {};
+#define RV_AARCH64(gdb_suffix, name) RV_ARCH(gdb_suffix, name, rr::AA64Arch, /* empty */)
+#define RV_AARCH64_WITH_MASK(gdb_suffix, name, comparison_mask, size)              \
+  RV_ARCH(gdb_suffix, name, rr::AA64Arch, COMMA comparison_mask COMMA size)
+RegisterInfo<rr::AA64Arch>::Table RegisterInfo<rr::AA64Arch>::registers = {
+  RV_AARCH64(X0, x[0]), RV_AARCH64(X1, x[1]), RV_AARCH64(X2, x[2]),
+  RV_AARCH64(X3, x[3]), RV_AARCH64(X4, x[4]), RV_AARCH64(X5, x[5]),
+  RV_AARCH64(X6, x[6]), RV_AARCH64(X7, x[7]), RV_AARCH64(X8, x[8]),
+  RV_AARCH64(X9, x[9]),
+  RV_AARCH64(X10, x[10]), RV_AARCH64(X11, x[11]), RV_AARCH64(X12, x[12]),
+  RV_AARCH64(X13, x[13]), RV_AARCH64(X14, x[14]), RV_AARCH64(X15, x[15]),
+  RV_AARCH64(X16, x[16]), RV_AARCH64(X17, x[17]), RV_AARCH64(X18, x[18]),
+  RV_AARCH64(X19, x[19]),
+  RV_AARCH64(X20, x[20]), RV_AARCH64(X21, x[21]), RV_AARCH64(X22, x[22]),
+  RV_AARCH64(X23, x[23]), RV_AARCH64(X24, x[24]), RV_AARCH64(X25, x[25]),
+  RV_AARCH64(X26, x[26]), RV_AARCH64(X27, x[27]), RV_AARCH64(X28, x[28]),
+  RV_AARCH64(X29, x[29]), RV_AARCH64(X30, x[30]),
+  RV_AARCH64(SP, sp), RV_AARCH64(PC, pc),
+  RV_AARCH64_WITH_MASK(CPSR, pstate, 0xffffffffLL, 4),
+};
+
+#undef RV_AARCH64
+#undef RV_AARCH64_WITH_MASK
+#undef RV_ARCHRV_ARCH
 
 // 32-bit format, 64-bit format for all of these.
 // format_index in RegisterPrinting depends on the ordering here.
@@ -557,6 +578,9 @@ Registers::InternalData Registers::get_ptrace_for_self_arch() const {
     case x86_64:
       return { reinterpret_cast<const uint8_t*>(&u.x64regs),
                sizeof(u.x64regs) };
+    case aarch64:
+      return { reinterpret_cast<const uint8_t*>(&u.aa64regs),
+               sizeof(u.aa64regs) };
     default:
       DEBUG_ASSERT(0 && "Unknown arch");
       return { nullptr, 0 };

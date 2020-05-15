@@ -164,6 +164,7 @@ struct MemWrite {
 enum Arch {
   x86 @0;
   x8664 @1;
+  aarch64 @2;
 }
 
 struct Registers {

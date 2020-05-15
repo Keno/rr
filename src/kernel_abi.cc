@@ -97,6 +97,7 @@ CHECK_ELF(ELFDATA2LSB == ELFENDIAN::DATA2LSB);
 static const uint8_t int80_insn[] = { 0xcd, 0x80 };
 static const uint8_t sysenter_insn[] = { 0x0f, 0x34 };
 static const uint8_t syscall_insn[] = { 0x0f, 0x05 };
+static const uint8_t svc0_insn[] = { 0x1, 0x0, 0x0, 0xd4 };
 
 bool get_syscall_instruction_arch(Task* t, remote_code_ptr ptr,
                                   SupportedArch* arch) {
@@ -118,7 +119,8 @@ bool get_syscall_instruction_arch(Task* t, remote_code_ptr ptr,
   }
 
   bool ok = true;
-  vector<uint8_t> code = t->read_mem(ptr.to_data_ptr<uint8_t>(), 2, &ok);
+  size_t max_inst_size = t->arch() == aarch64 ? 4 : 2;
+  vector<uint8_t> code = t->read_mem(ptr.to_data_ptr<uint8_t>(), max_inst_size, &ok);
   if (!ok) {
     return false;
   }
@@ -137,7 +139,14 @@ bool get_syscall_instruction_arch(Task* t, remote_code_ptr ptr,
         return false;
       }
       return true;
+    case aarch64:
+      if (memcmp(code.data(), svc0_insn, sizeof(svc0_insn)) == 0) {
+        *arch = aarch64;
+        return true;
+      }
+      return false;
     default:
+      assert(false && "Not implemented");
       return false;
   }
 }
@@ -153,10 +162,16 @@ vector<uint8_t> syscall_instruction(SupportedArch arch) {
       return vector<uint8_t>(int80_insn, int80_insn + sizeof(int80_insn));
     case x86_64:
       return vector<uint8_t>(syscall_insn, syscall_insn + sizeof(syscall_insn));
+    case aarch64:
+      return vector<uint8_t>(svc0_insn, svc0_insn + sizeof(svc0_insn));
     default:
       DEBUG_ASSERT(0 && "Need to define syscall instruction");
       return vector<uint8_t>();
   }
+}
+
+ssize_t aarch64_instrucution_length() {
+  return 4;
 }
 
 ssize_t syscall_instruction_length(SupportedArch arch) {
@@ -164,6 +179,8 @@ ssize_t syscall_instruction_length(SupportedArch arch) {
     case x86:
     case x86_64:
       return 2;
+    case aarch64:
+      return aarch64_instrucution_length();
     default:
       DEBUG_ASSERT(0 && "Need to define syscall instruction length");
       return 0;
@@ -176,6 +193,8 @@ ssize_t movrm_instruction_length(SupportedArch arch) {
       return 2;
     case x86_64:
       return 3;
+    case aarch64:
+      return aarch64_instrucution_length();
     default:
       DEBUG_ASSERT(0 && "Need to define movrm instruction length");
       return 0;

@@ -568,7 +568,7 @@ setitimer = EmulatedSyscall(x86=104, x64=38, generic=103, arg3="typename Arch::i
 getitimer = EmulatedSyscall(x86=105, x64=36, generic=102, arg2="typename Arch::itimerval")
 stat = EmulatedSyscall(x86=106, x64=4, arg2="struct Arch::stat")
 lstat = EmulatedSyscall(x86=107, x64=6, arg2="struct Arch::stat")
-fstat = EmulatedSyscall(x86=108, x64=5, arg2="struct Arch::stat")
+fstat = EmulatedSyscall(x86=108, x64=5, generic=80, arg2="struct Arch::stat")
 olduname = UnsupportedSyscall(x86=109)
 iopl = UnsupportedSyscall(x86=110, x64=172)
 vhangup = UnsupportedSyscall(x86=111, x64=153, generic=58)

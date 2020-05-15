@@ -304,9 +304,7 @@ void RecordSession::handle_seccomp_traced_syscall(RecordTask* t,
       // on the rest of the system, do a fake syscall entry, then reset
       // the register state.
       Registers orig_regs = t->regs();
-      Registers r = orig_regs;
-      r.set_original_syscallno(syscall_number_for_gettid(t->arch()));
-      t->set_regs(r);
+      t->change_syscallno(syscall_number_for_gettid(t->arch()));
       t->resume_execution(RESUME_SYSCALL, RESUME_WAIT, RESUME_NO_TICKS);
       t->set_regs(orig_regs);
     }
@@ -393,8 +391,7 @@ static void handle_seccomp_trap(RecordTask* t,
   Registers r = t->regs();
   int syscallno = r.original_syscallno();
   // Cause kernel processing to skip the syscall
-  r.set_original_syscallno(SECCOMP_MAGIC_SKIP_ORIGINAL_SYSCALLNO);
-  t->set_regs(r);
+  t->change_syscallno(SECCOMP_MAGIC_SKIP_ORIGINAL_SYSCALLNO);
 
   bool syscall_entry_already_recorded = false;
   if (t->ev().is_syscall_event()) {
@@ -501,8 +498,7 @@ static void handle_seccomp_errno(RecordTask* t,
   Registers r = t->regs();
   int syscallno = r.original_syscallno();
   // Cause kernel processing to skip the syscall
-  r.set_original_syscallno(SECCOMP_MAGIC_SKIP_ORIGINAL_SYSCALLNO);
-  t->set_regs(r);
+  t->change_syscallno(SECCOMP_MAGIC_SKIP_ORIGINAL_SYSCALLNO);
 
   if (!t->is_in_untraced_syscall()) {
     t->push_syscall_event(syscallno);
@@ -547,6 +543,7 @@ bool RecordSession::handle_ptrace_event(RecordTask** t_ptr,
     case PTRACE_EVENT_SECCOMP: {
       if (syscall_seccomp_ordering_ == PTRACE_SYSCALL_BEFORE_SECCOMP_UNKNOWN) {
         syscall_seccomp_ordering_ = SECCOMP_BEFORE_PTRACE_SYSCALL;
+        LOG(debug) << "  Ordering is now known to be SECCOMP_BEFORE_PTRACE_SYSCALL";
       }
 
       uint16_t seccomp_data = t->get_ptrace_eventmsg_seccomp_data();
@@ -1723,6 +1720,7 @@ bool RecordSession::process_syscall_entry(RecordTask* t, StepState* step_state,
       // notification. Ignore it and continue to the seccomp notification.
       syscall_seccomp_ordering_ = PTRACE_SYSCALL_BEFORE_SECCOMP;
       step_state->continue_type = CONTINUE;
+      LOG(debug) << "Syscall orderning is now known to be PTRACE_SYSCALL_BEFORE_SECCOMP";
       return true;
     }
 
@@ -2153,8 +2151,10 @@ RecordSession::RecordSession(const std::string& exe_path,
       Task::spawn(*this, error_fd, &tracee_socket_fd(),
                   &tracee_socket_fd_number,
                   exe_path, argv, envp));
-  // CPU affinity has been set.
-  trace_out.setup_cpuid_records(has_cpuid_faulting(), disable_cpuid_features_);
+  if (t->arch() == SupportedArch::x86_64 || t->arch() == SupportedArch::x86) {
+    // CPU affinity has been set.
+    trace_out.setup_cpuid_records(has_cpuid_faulting(), disable_cpuid_features_);
+  }
 
   initial_thread_group = t->thread_group();
   on_create(t);

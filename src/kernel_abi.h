@@ -2035,7 +2035,7 @@ struct AA64Arch : public GenericArch<SupportedArch::aarch64, WordSize64Defs> {
   struct user {};
 
   struct user_pt_regs {
-    __u64		regs[31];
+    __u64		x[31];
     __u64		sp;
     __u64		pc;
     __u64		pstate;

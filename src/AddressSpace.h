@@ -213,9 +213,14 @@ enum WatchType {
   WATCH_READWRITE = 0x03
 };
 
+/* X86 only */
 enum DebugStatus {
   DS_WATCHPOINT_ANY = 0xf,
   DS_SINGLESTEP = 1 << 14,
+};
+
+enum PState {
+  DBG_SPSR_SS = 1 << 21
 };
 
 /**

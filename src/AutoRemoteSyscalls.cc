@@ -255,6 +255,14 @@ long AutoRemoteSyscalls::syscall_base(int syscallno, Registers& callregs) {
         // We entered the syscall, so stop now
         break;
       }
+      if (t->ptrace_event() == PTRACE_EVENT_EXIT) {
+        // We died, just let it be
+        break;
+      }
+      TrapReasons trap_reasons = t->compute_trap_reasons();
+      if (trap_reasons.singlestep) {
+        continue;
+      }
       if (ignore_signal(t)) {
         // We were interrupted by a signal before we even entered the syscall
         continue;

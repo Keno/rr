@@ -241,6 +241,9 @@ void GdbServer::dispatch_regs_request(const Registers& regs,
     case x86_64:
       end = have_AVX ? DREG_64_YMM15H : DREG_ORIG_RAX;
       break;
+    case aarch64:
+      end = DREG_NUM_LINUX_AARCH64;
+      break;
     default:
       FATAL() << "Unknown architecture";
       return;
@@ -1449,6 +1452,9 @@ static uint32_t get_cpu_features(SupportedArch arch) {
     case x86:
       cpu_features = 0;
       break;
+    case aarch64:
+      cpu_features = GdbConnection::CPU_AARCH64;
+      break;
     case x86_64:
       cpu_features = GdbConnection::CPU_64BIT;
       break;
@@ -1457,13 +1463,15 @@ static uint32_t get_cpu_features(SupportedArch arch) {
       return 0;
   }
 
-  unsigned int AVX_cpuid_flags = AVX_FEATURE_FLAG | OSXSAVE_FEATURE_FLAG;
-  auto cpuid_data = cpuid(CPUID_GETFEATURES, 0);
-  // We're assuming here that AVX support on the system making the recording
-  // is the same as the AVX support during replay. But if that's not true,
-  // rr is totally broken anyway.
-  if ((cpuid_data.ecx & AVX_cpuid_flags) == AVX_cpuid_flags) {
-    cpu_features |= GdbConnection::CPU_AVX;
+  if (arch == x86 || arch == x86_64) {
+    unsigned int AVX_cpuid_flags = AVX_FEATURE_FLAG | OSXSAVE_FEATURE_FLAG;
+    auto cpuid_data = cpuid(CPUID_GETFEATURES, 0);
+    // We're assuming here that AVX support on the system making the recording
+    // is the same as the AVX support during replay. But if that's not true,
+    // rr is totally broken anyway.
+    if ((cpuid_data.ecx & AVX_cpuid_flags) == AVX_cpuid_flags) {
+      cpu_features |= GdbConnection::CPU_AVX;
+    }
   }
 
   return cpu_features;

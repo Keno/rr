@@ -402,6 +402,10 @@ add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/share/rr/rr_page_32"
                    COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/src/generate_rr_page.py"
                    "${CMAKE_CURRENT_BINARY_DIR}/share/rr/rr_page_32"
                    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/generate_rr_page.py")
+add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/share/rr/rr_page_aa64"
+                   COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/src/generate_rr_page.py"
+                   "${CMAKE_CURRENT_BINARY_DIR}/share/rr/rr_page_aa64"
+                   DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/generate_rr_page.py")
 add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/share/rr/rr_page_64_replay"
                    COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/src/generate_rr_page.py"
                    "${CMAKE_CURRENT_BINARY_DIR}/share/rr/rr_page_64_replay"
@@ -410,12 +414,18 @@ add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/share/rr/rr_page_32_repla
                    COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/src/generate_rr_page.py"
                    "${CMAKE_CURRENT_BINARY_DIR}/share/rr/rr_page_32_replay"
                    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/generate_rr_page.py")
+add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/share/rr/rr_page_aa64_replay"
+                   COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/src/generate_rr_page.py"
+                   "${CMAKE_CURRENT_BINARY_DIR}/share/rr/rr_page_aa64_replay"
+                   DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/generate_rr_page.py")
 
 add_custom_target(Pages DEPENDS
                   "${CMAKE_CURRENT_BINARY_DIR}/share/rr/rr_page_32"
                   "${CMAKE_CURRENT_BINARY_DIR}/share/rr/rr_page_64"
+                  "${CMAKE_CURRENT_BINARY_DIR}/share/rr/rr_page_aa64"
                   "${CMAKE_CURRENT_BINARY_DIR}/share/rr/rr_page_32_replay"
-                  "${CMAKE_CURRENT_BINARY_DIR}/share/rr/rr_page_64_replay")
+                  "${CMAKE_CURRENT_BINARY_DIR}/share/rr/rr_page_64_replay"
+                  "${CMAKE_CURRENT_BINARY_DIR}/share/rr/rr_page_aa64_replay")
 
 add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/rr_trace.capnp.c++"
                           "${CMAKE_CURRENT_BINARY_DIR}/rr_trace.capnp.h"
@@ -601,6 +611,7 @@ set(RR_GDB_RESOURCES
   amd64-linux.xml
   i386-avx-linux.xml
   i386-linux.xml
+  aarch64-core.xml
 )
 foreach(file ${RR_GDB_RESOURCES})
   configure_file("${CMAKE_CURRENT_SOURCE_DIR}/third-party/gdb/${file}"

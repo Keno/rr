@@ -267,6 +267,9 @@ static string find_rr_page_file(Task* t) {
     case x86_64:
       path += "64";
       break;
+    case aarch64:
+      path += "aa64";
+      break;
     default:
       ASSERT(t, false) << "Unknown architecture";
       return path;
@@ -1495,7 +1498,7 @@ void AddressSpace::verify(Task* t) const {
 // Just a place that rr's AutoSyscall functionality can use as a syscall
 // instruction in rr's address space for use before we have exec'd.
 extern "C" {
-extern char rr_syscall_addr;
+extern char rr_syscall_addr __attribute__ ((visibility ("hidden")));
 }
 static void __attribute__((noinline, used)) fake_syscall() {
 #ifdef __i386__

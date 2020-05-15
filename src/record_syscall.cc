@@ -967,9 +967,7 @@ static Switchable maybe_blacklist_connect(RecordTask* t,
   if (addr.sun_family == AF_UNIX && is_blacklisted_socket(addr.sun_path)) {
     LOG(warn) << "Cowardly refusing to connect to " << addr.sun_path;
     // Hijack the syscall.
-    Registers r = t->regs();
-    r.set_original_syscallno(Arch::gettid);
-    t->set_regs(r);
+    t->change_syscallno(Arch::gettid);
   }
   return PREVENT_SWITCH;
 }
@@ -1870,9 +1868,7 @@ static void maybe_pause_instead_of_waiting(RecordTask* t, int options) {
   // syscall.
   // It would be nice if we didn't have to do this, but I can't see a better
   // way.
-  Registers r = t->regs();
-  r.set_original_syscallno(syscall_number_for_pause(t->arch()));
-  t->set_regs(r);
+  t->change_syscallno(syscall_number_for_pause(t->arch()));
 }
 
 static RecordTask* verify_ptrace_target(RecordTask* tracer,
@@ -2633,7 +2629,7 @@ static void prepare_exit(RecordTask* t) {
   // anymore.
   //
   // So hijack this SYS_exit call and rewrite it into a SYS_rt_sigprocmask.
-  r.set_original_syscallno(syscall_number_for_rt_sigprocmask(t->arch()));
+  t->change_syscallno(syscall_number_for_rt_sigprocmask(t->arch()));
   r.set_arg1(SIG_BLOCK);
   r.set_arg2(AddressSpace::rr_page_ff_bytes());
   r.set_arg3(0);
@@ -2652,8 +2648,8 @@ static void prepare_exit(RecordTask* t) {
   // Restore these regs to what they would have been just before
   // the tracee trapped at SYS_exit/SYS_exit_group.  When we've finished
   // cleanup, we'll restart the call.
+  exit_regs.restore_original_syscallno(-1);
   exit_regs.set_syscallno(exit_regs.original_syscallno());
-  exit_regs.set_original_syscallno(-1);
   exit_regs.set_ip(exit_regs.ip() - syscall_instruction_length(t->arch()));
   ASSERT(t, is_at_syscall_instruction(t, exit_regs.ip()))
       << "Tracee should have entered through int $0x80.";
@@ -2804,7 +2800,7 @@ static void prepare_clone(RecordTask* t, TaskSyscallState& syscall_state) {
       // path.
       t->ev().Syscall().failed_during_preparation = true;
       // Restore register we might have changed
-      r.set_arg1(syscall_state.syscall_entry_registers.arg1());
+      r.restore_arg1(syscall_state.syscall_entry_registers.arg1());
       r.set_syscallno(Arch::gettid);
       r.set_ip(r.ip().decrement_by_syscall_insn_length(r.arch()));
       t->set_regs(r);
@@ -2845,7 +2841,7 @@ static void prepare_clone(RecordTask* t, TaskSyscallState& syscall_state) {
   Registers new_r = new_task->regs();
   new_r.set_original_syscallno(
       syscall_state.syscall_entry_registers.original_syscallno());
-  new_r.set_arg1(syscall_state.syscall_entry_registers.arg1());
+  new_r.restore_arg1(syscall_state.syscall_entry_registers.arg1());
   new_task->set_regs(new_r);
   new_task->canonicalize_regs(new_task->arch());
   new_task->set_termination_signal(termination_signal);
@@ -2887,7 +2883,7 @@ static void prepare_clone(RecordTask* t, TaskSyscallState& syscall_state) {
   // see the original registers without our modifications if it inspects them
   // in the ptrace event.
   r = t->regs();
-  r.set_arg1(syscall_state.syscall_entry_registers.arg1());
+  r.restore_arg1(syscall_state.syscall_entry_registers.arg1());
   r.set_original_syscallno(
       syscall_state.syscall_entry_registers.original_syscallno());
   t->set_regs(r);
@@ -3019,7 +3015,7 @@ static Switchable did_emulate_read(int syscallno, RecordTask* t,
   } else {
     // Turn this into an lseek to emulate the advance of the fd ptr
     Registers r = t->regs();
-    r.set_original_syscallno(Arch::lseek);
+    t->change_syscallno(Arch::lseek);
     r.set_arg2(result);
     r.set_arg3(SEEK_CUR);
     t->set_regs(r);
@@ -3786,7 +3782,7 @@ static Switchable rec_prepare_syscall_arch(RecordTask* t,
           // Turn this into an inotify_init() syscall. This just gives us an
           // allocated fd. Syscalls using this fd will be emulated (except for
           // close()).
-          r.set_original_syscallno(Arch::inotify_init1);
+          t->change_syscallno(Arch::inotify_init1);
           int in_flags = (flags & PERF_FLAG_FD_CLOEXEC) ? O_CLOEXEC : 0;
           r.set_arg1(in_flags);
           t->set_regs(r);
@@ -5433,7 +5429,7 @@ static void rec_process_syscall_arch(RecordTask* t,
         }
         case Arch::RegisterArguments: {
           Registers r = t->regs();
-          r.set_arg1(syscall_state.syscall_entry_registers.arg1());
+          r.restore_arg1(syscall_state.syscall_entry_registers.arg1());
           r.set_arg4(syscall_state.syscall_entry_registers.arg4_signed());
           t->set_regs(r);
           process_mmap(t, (size_t)r.arg2(), (int)r.arg3_signed(),
@@ -5446,7 +5442,7 @@ static void rec_process_syscall_arch(RecordTask* t,
 
     case Arch::mmap2: {
       Registers r = t->regs();
-      r.set_arg1(syscall_state.syscall_entry_registers.arg1());
+      r.restore_arg1(syscall_state.syscall_entry_registers.arg1());
       r.set_arg4(syscall_state.syscall_entry_registers.arg4_signed());
       t->set_regs(r);
       process_mmap(t, (size_t)r.arg2(), (int)r.arg3_signed(),
@@ -5496,7 +5492,7 @@ static void rec_process_syscall_arch(RecordTask* t,
         Registers r = t->regs();
         r.set_original_syscallno(
             syscall_state.syscall_entry_registers.original_syscallno());
-        r.set_arg1(syscall_state.syscall_entry_registers.arg1());
+        r.restore_arg1(syscall_state.syscall_entry_registers.arg1());
         t->set_regs(r);
         auto attr =
             t->read_mem(remote_ptr<struct perf_event_attr>(t->regs().arg1()));
@@ -5594,7 +5590,7 @@ static void rec_process_syscall_arch(RecordTask* t,
     case Arch::setsockopt: {
       // restore possibly-modified regs
       Registers r = t->regs();
-      r.set_arg1(syscall_state.syscall_entry_registers.arg1());
+      r.restore_arg1(syscall_state.syscall_entry_registers.arg1());
       t->set_regs(r);
       break;
     }
@@ -5606,7 +5602,7 @@ static void rec_process_syscall_arch(RecordTask* t,
         // `connect` was suppressed
         r.set_syscall_result(-EACCES);
       }
-      r.set_arg1(syscall_state.syscall_entry_registers.arg1());
+      r.restore_arg1(syscall_state.syscall_entry_registers.arg1());
       r.set_original_syscallno(
           syscall_state.syscall_entry_registers.original_syscallno());
       t->set_regs(r);
@@ -5667,7 +5663,7 @@ static void rec_process_syscall_arch(RecordTask* t,
     case Arch::mprotect: {
       // Restore the registers that we may have altered.
       Registers r = t->regs();
-      r.set_arg1(syscall_state.syscall_entry_registers.arg1());
+      r.restore_arg1(syscall_state.syscall_entry_registers.arg1());
       r.set_arg2(syscall_state.syscall_entry_registers.arg2());
       r.set_arg3(syscall_state.syscall_entry_registers.arg3());
       t->set_regs(r);
@@ -5688,7 +5684,7 @@ static void rec_process_syscall_arch(RecordTask* t,
       t->in_wait_type = WAIT_TYPE_NONE;
       // Restore possibly-modified registers
       Registers r = t->regs();
-      r.set_arg1(syscall_state.syscall_entry_registers.arg1());
+      r.restore_arg1(syscall_state.syscall_entry_registers.arg1());
       r.set_arg2(syscall_state.syscall_entry_registers.arg2());
       r.set_arg3(syscall_state.syscall_entry_registers.arg3());
       r.set_arg4(syscall_state.syscall_entry_registers.arg4());
@@ -5743,15 +5739,18 @@ static void rec_process_syscall_arch(RecordTask* t,
     case Arch::prctl: {
       // Restore arg1 in case we modified it to disable the syscall
       Registers r = t->regs();
-      r.set_arg1(syscall_state.syscall_entry_registers.arg1());
+      r.restore_arg1(syscall_state.syscall_entry_registers.arg1());
       t->set_regs(r);
-      switch ((int)t->regs().arg1()) {
+      switch ((int)syscall_state.syscall_entry_registers.arg1()) {
         case PR_SET_SECCOMP:
           if (t->session().done_initial_exec()) {
             t->session()
                 .as_record()
                 ->seccomp_filter_rewriter()
                 .install_patched_seccomp_filter(t);
+          }
+          if (r.arg2() == SECCOMP_MODE_FILTER) {
+            t->seccomp_was_enabled();
           }
           break;
       }
@@ -5761,7 +5760,7 @@ static void rec_process_syscall_arch(RecordTask* t,
     case Arch::arch_prctl: {
       // Restore arg1 in case we modified it to disable the syscall
       Registers r = t->regs();
-      r.set_arg1(syscall_state.syscall_entry_registers.arg1());
+      r.restore_arg1(syscall_state.syscall_entry_registers.arg1());
       t->set_regs(r);
       break;
     }
@@ -5792,7 +5791,7 @@ static void rec_process_syscall_arch(RecordTask* t,
     case Arch::seccomp: {
       // Restore arg1 in case we modified it to disable the syscall
       Registers r = t->regs();
-      r.set_arg1(syscall_state.syscall_entry_registers.arg1());
+      r.restore_arg1(syscall_state.syscall_entry_registers.arg1());
       t->set_regs(r);
       if (t->regs().arg1() == SECCOMP_SET_MODE_FILTER) {
         ASSERT(t, t->session().done_initial_exec())
@@ -5856,7 +5855,9 @@ void rec_process_syscall(RecordTask* t) {
   }
   rec_process_syscall_internal(t, sys_ev.arch(), syscall_state);
   syscall_state.process_syscall_results();
-  t->on_syscall_exit(sys_ev.number, sys_ev.arch(), t->regs());
+  Registers regs = t->regs();
+  regs.set_orig_arg1(syscall_state.syscall_entry_registers.arg1());
+  t->on_syscall_exit(sys_ev.number, sys_ev.arch(), regs);
   syscall_state_property.remove(*t);
 
   MonitoredSharedMemory::check_all(t);

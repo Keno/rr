@@ -472,7 +472,7 @@ void Task::on_syscall_exit_arch(int syscallno, const Registers& regs) {
     // replay is notified of the syscall via the `mprotect_records`
     // mechanism; if it's being recorded, it forwards that notification to
     // the recorder by calling this syscall.
-    pid_t tid = regs.arg1();
+    pid_t tid = regs.orig_arg1();
     remote_ptr<void> addr = regs.arg2();
     size_t num_bytes = regs.arg3();
     int prot = regs.arg4_signed();
@@ -500,26 +500,26 @@ void Task::on_syscall_exit_arch(int syscallno, const Registers& regs) {
     }
 
     case Arch::mprotect: {
-      remote_ptr<void> addr = regs.arg1();
+      remote_ptr<void> addr = regs.orig_arg1();
       size_t num_bytes = regs.arg2();
       int prot = regs.arg3_signed();
       return vm()->protect(this, addr, num_bytes, prot);
     }
     case Arch::munmap: {
-      remote_ptr<void> addr = regs.arg1();
+      remote_ptr<void> addr = regs.orig_arg1();
       size_t num_bytes = regs.arg2();
       return vm()->unmap(this, addr, num_bytes);
     }
     case Arch::shmdt:
-      return process_shmdt(this, regs.arg1());
+      return process_shmdt(this, regs.orig_arg1());
     case Arch::madvise: {
-      remote_ptr<void> addr = regs.arg1();
+      remote_ptr<void> addr = regs.orig_arg1();
       size_t num_bytes = regs.arg2();
       int advice = regs.arg3();
       return vm()->advise(this, addr, num_bytes, advice);
     }
     case Arch::ipc: {
-      switch ((int)regs.arg1_signed()) {
+      switch ((int)regs.orig_arg1_signed()) {
         case SHMDT:
           return process_shmdt(this, regs.arg5());
         default:
@@ -535,12 +535,7 @@ void Task::on_syscall_exit_arch(int syscallno, const Registers& regs) {
 */
 
     case Arch::prctl:
-      switch ((int)regs.arg1_signed()) {
-        case PR_SET_SECCOMP:
-          if (regs.arg2() == SECCOMP_MODE_FILTER && session().is_recording()) {
-            seccomp_bpf_enabled = true;
-          }
-          break;
+      switch ((int)regs.orig_arg1_signed()) {
         case PR_SET_NAME: {
           update_prname(regs.arg2());
           break;
@@ -551,20 +546,20 @@ void Task::on_syscall_exit_arch(int syscallno, const Registers& regs) {
     case Arch::dup:
     case Arch::dup2:
     case Arch::dup3:
-      fd_table()->did_dup(regs.arg1(), regs.syscall_result());
+      fd_table()->did_dup(regs.orig_arg1(), regs.syscall_result());
       return;
     case Arch::fcntl64:
     case Arch::fcntl:
       if (regs.arg2() == Arch::DUPFD || regs.arg2() == Arch::DUPFD_CLOEXEC) {
-        fd_table()->did_dup(regs.arg1(), regs.syscall_result());
+        fd_table()->did_dup(regs.orig_arg1(), regs.syscall_result());
       }
       return;
     case Arch::close:
-      fd_table()->did_close(regs.arg1());
+      fd_table()->did_close(regs.orig_arg1());
       return;
 
     case Arch::unshare:
-      if (regs.arg1() & CLONE_FILES) {
+      if (regs.orig_arg1() & CLONE_FILES) {
         fds->erase_task(this);
         fds = fds->clone(this);
       }
@@ -572,7 +567,7 @@ void Task::on_syscall_exit_arch(int syscallno, const Registers& regs) {
 
     case Arch::pwrite64:
     case Arch::write: {
-      int fd = (int)regs.arg1_signed();
+      int fd = (int)regs.orig_arg1_signed();
       vector<FileMonitor::Range> ranges;
       ssize_t amount = regs.syscall_result_signed();
       if (amount > 0) {
@@ -585,7 +580,7 @@ void Task::on_syscall_exit_arch(int syscallno, const Registers& regs) {
 
     case Arch::pwritev:
     case Arch::writev: {
-      int fd = (int)regs.arg1_signed();
+      int fd = (int)regs.orig_arg1_signed();
       vector<FileMonitor::Range> ranges;
       auto iovecs =
           read_mem(remote_ptr<typename Arch::iovec>(regs.arg2()), regs.arg3());
@@ -606,7 +601,7 @@ void Task::on_syscall_exit_arch(int syscallno, const Registers& regs) {
     case Arch::ptrace: {
       pid_t pid = (pid_t)regs.arg2_signed();
       Task* tracee = session().find_task(pid);
-      switch ((int)regs.arg1_signed()) {
+      switch ((int)regs.orig_arg1_signed()) {
 #ifdef PTRACE_SETREGS
         case PTRACE_SETREGS: {
           auto data = read_mem(
@@ -830,7 +825,7 @@ bool Task::exit_syscall_and_prepare_restart() {
   int syscallno = r.original_syscallno();
   LOG(debug) << "exit_syscall_and_prepare_restart from syscall "
              << rr::syscall_name(syscallno, r.arch());
-  r.set_original_syscallno(syscall_number_for_gettid(r.arch()));
+  change_syscallno(syscall_number_for_gettid(r.arch()));
   set_regs(r);
   // This exits the hijacked SYS_gettid.  Now the tracee is
   // ready to do our bidding.
@@ -1029,16 +1024,14 @@ uintptr_t Task::debug_status() {
     case SupportedArch::x86:
     case SupportedArch::x86_64:
       return fallible_ptrace(PTRACE_PEEKUSER, dr_user_word_offset(6), nullptr);
-    case SupportedArch::aarch64:
-      return 0;
     default:
      FATAL() << "Unknown";
      __builtin_unreachable();
   }
 }
 
-void Task::set_debug_status(uintptr_t status) {
-  set_debug_reg(6, status);
+void Task::set_debug_status(uintptr_t) {
+  //set_debug_reg(6, status);
 }
 
 static bool is_singlestep_resume(ResumeRequest request) {
@@ -1048,8 +1041,20 @@ static bool is_singlestep_resume(ResumeRequest request) {
 TrapReasons Task::compute_trap_reasons() {
   ASSERT(this, stop_sig() == SIGTRAP);
   TrapReasons reasons;
-  uintptr_t status = debug_status();
-  reasons.singlestep = (status & DS_SINGLESTEP) != 0;
+  uintptr_t status;
+  switch (arch()) {
+    case x86:
+    case x86_64: {
+      status = debug_status();
+      reasons.singlestep = (status & DS_SINGLESTEP) != 0;
+      break;
+    }
+    case aarch64: {
+      status = regs().pstate();
+      reasons.singlestep = (status & DBG_SPSR_SS) != 0;
+      break;
+    }
+  }
 
   if (is_singlestep_resume(how_last_execution_resumed)) {
     if (is_at_syscall_instruction(this, address_of_last_execution_resume) &&
@@ -1079,19 +1084,21 @@ TrapReasons Task::compute_trap_reasons() {
     }
   }
 
-  // In VMWare Player 6.0.4 build-2249910, 32-bit Ubuntu x86 guest,
-  // single-stepping does not trigger watchpoints :-(. So we have to
-  // check watchpoints here. fast_forward also hides watchpoint changes.
-  // Write-watchpoints will detect that their value has changed and trigger.
-  // XXX Read/exec watchpoints can't be detected this way so they're still
-  // broken in the above configuration :-(.
-  if ((DS_WATCHPOINT_ANY | DS_SINGLESTEP) & status) {
-    as->notify_watchpoint_fired(status,
-        is_singlestep_resume(how_last_execution_resumed)
-            ? address_of_last_execution_resume : nullptr);
+  if (arch() == x86 || arch() == x86_64) {
+    // In VMWare Player 6.0.4 build-2249910, 32-bit Ubuntu x86 guest,
+    // single-stepping does not trigger watchpoints :-(. So we have to
+    // check watchpoints here. fast_forward also hides watchpoint changes.
+    // Write-watchpoints will detect that their value has changed and trigger.
+    // XXX Read/exec watchpoints can't be detected this way so they're still
+    // broken in the above configuration :-(.
+    if ((DS_WATCHPOINT_ANY | DS_SINGLESTEP) & status) {
+      as->notify_watchpoint_fired(status,
+          is_singlestep_resume(how_last_execution_resumed)
+              ? address_of_last_execution_resume : nullptr);
+    }
+    reasons.watchpoint =
+        as->has_any_watchpoint_changes() || (DS_WATCHPOINT_ANY & status);
   }
-  reasons.watchpoint =
-      as->has_any_watchpoint_changes() || (DS_WATCHPOINT_ANY & status);
 
   // If we triggered a breakpoint, this would be the address of the breakpoint
   remote_code_ptr ip_at_breakpoint = ip().decrement_by_bkpt_insn_length(arch());
@@ -1241,13 +1248,15 @@ void Task::resume_execution(ResumeRequest how, WaitRequest wait_how,
   set_debug_status(0);
 
   if (is_singlestep_resume(how)) {
-    work_around_KNL_string_singlestep_bug();
-    singlestepping_instruction = trapped_instruction_at(this, ip());
-    if (singlestepping_instruction == TrappedInstruction::CPUID) {
-      // In KVM virtual machines (and maybe others), singlestepping over CPUID
-      // executes the following instruction as well. Work around that.
-      did_set_breakpoint_after_cpuid =
-        vm()->add_breakpoint(ip() + trapped_instruction_len(singlestepping_instruction), BKPT_INTERNAL);
+    if (arch() == SupportedArch::x86_64 || arch() == SupportedArch::x86) {
+      work_around_KNL_string_singlestep_bug();
+      singlestepping_instruction = trapped_instruction_at(this, ip());
+      if (singlestepping_instruction == TrappedInstruction::CPUID) {
+        // In KVM virtual machines (and maybe others), singlestepping over CPUID
+        // executes the following instruction as well. Work around that.
+        did_set_breakpoint_after_cpuid =
+          vm()->add_breakpoint(ip() + trapped_instruction_len(singlestepping_instruction), BKPT_INTERNAL);
+      }
     }
   }
 
@@ -1823,10 +1832,12 @@ void Task::did_waitpid(WaitStatus status) {
   if (status.ptrace_event() == PTRACE_EVENT_EXIT) {
     seen_ptrace_exit_event = true;
   } else {
+    /*
     if (registers.singlestep_flag()) {
       registers.clear_singlestep_flag();
       registers_dirty = true;
     }
+    */
 
     if (last_resume_orig_cx != 0) {
       uintptr_t new_cx = registers.cx();
@@ -2652,6 +2663,9 @@ bool Task::ptrace_if_alive(int request, remote_ptr<void> addr, void* data) {
 }
 
 SupportedArch Task::detect_syscall_arch() {
+  if (arch() == SupportedArch::aarch64) {
+    return SupportedArch::aarch64;
+  }
   SupportedArch syscall_arch;
   bool ok = get_syscall_instruction_arch(
       this, regs().ip().decrement_by_syscall_insn_length(arch()),
@@ -2821,12 +2835,14 @@ static void set_up_process(Session& session, const ScopedFd& err_fd,
     setsid();
   }
 
+#if defined(__i386__) || defined(__x86_64__)
   /* Trap to the rr process if a 'rdtsc' instruction is issued.
    * That allows rr to record the tsc and replay it
    * deterministically. */
   if (0 > prctl(PR_SET_TSC, PR_TSC_SIGSEGV, 0, 0, 0)) {
     spawned_child_fatal_error(err_fd, "error setting up prctl");
   }
+#endif
 
   /* If we're in setuid_sudo mode, we have CAP_SYS_ADMIN, so we don't need to
      set NO_NEW_PRIVS here in order to install the seccomp filter later. In,
@@ -3217,7 +3233,7 @@ static void __ptrace_cont(Task* t, ResumeRequest resume_how,
       << "Expected no pending signal, but got " << t->stop_sig();
 
   /* check if we are synchronized with the trace -- should never fail */
-  int current_syscall = t->regs().original_syscallno();
+  int current_syscall = t->current_syscallno();
   ASSERT(t,
          current_syscall == expect_syscallno ||
              current_syscall == expect_syscallno2)
@@ -3272,8 +3288,8 @@ void Task::os_exec_stub(SupportedArch exec_arch)
    */
   int expect_syscallno = syscall_number_for_execve(arch());
   regs.set_syscallno(expect_syscallno);
-  regs.set_original_syscallno(expect_syscallno);
   set_regs(regs);
+  //change_syscallno(expect_syscallno);
 
   LOG(debug) << "Beginning execve" << this->regs();
   enter_syscall();
@@ -3304,6 +3320,40 @@ void Task::os_exec_stub(SupportedArch exec_arch)
   if (memory_task != this) {
     memory_task->write_mem(remote_mem.cast<uint8_t>(), saved_data.data(),
                            saved_data.size());
+  }
+}
+
+void Task::change_syscallno(int new_syscallno) {
+  switch (arch()) {
+    case x86:
+    case x86_64: {
+      registers.set_original_syscallno(new_syscallno);
+      registers_dirty = true;
+      break;
+    }
+    case aarch64: {
+      uintptr_t reg_value = new_syscallno;
+      struct iovec iov { &reg_value, sizeof(reg_value) };
+      ptrace_if_alive(PTRACE_SETREGSET, NT_ARM_SYSTEM_CALL, &iov);
+    }
+  }
+}
+
+int Task::current_syscallno() {
+  switch (arch()) {
+    case x86:
+    case x86_64: {
+      return registers.original_syscallno();
+    }
+    case aarch64: {
+      uintptr_t reg_value;
+      struct iovec iov { &reg_value, sizeof(reg_value) };
+      ptrace_if_alive(PTRACE_GETREGSET, NT_ARM_SYSTEM_CALL, &iov);
+      return reg_value;
+    }
+    default:
+      FATAL() << "Unimplemented";
+      return 0;
   }
 }
 

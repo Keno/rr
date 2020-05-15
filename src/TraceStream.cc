@@ -243,6 +243,8 @@ static trace::Arch to_trace_arch(SupportedArch arch) {
       return trace::Arch::X86;
     case x86_64:
       return trace::Arch::X8664;
+    case aarch64:
+      return trace::Arch::AARCH64;
     default:
       FATAL() << "Unknown arch";
       return trace::Arch::X86;
@@ -255,6 +257,8 @@ static SupportedArch from_trace_arch(trace::Arch arch) {
       return x86;
     case trace::Arch::X8664:
       return x86_64;
+    case trace::Arch::AARCH64:
+      return aarch64;
     default:
       FATAL() << "Unknown arch";
       return x86;
@@ -546,11 +550,23 @@ TraceFrame TraceReader::read_frame() {
   }
   auto extra_reg_data = frame.getExtraRegisters().getRaw();
   if (extra_reg_data.size()) {
+    ExtraRegisters::Format fmt;
+    switch (arch) {
+      case x86:
+      case x86_64:
+        fmt = ExtraRegisters::XSAVE;
+        break;
+      case aarch64:
+        fmt = ExtraRegisters::ARM_FPR;
+        break;
+      default:
+        FATAL() << "Unknown architecture";
+    }
     bool ok = ret.recorded_extra_regs.set_to_raw_data(
-        arch, ExtraRegisters::XSAVE, extra_reg_data.begin(),
+        arch, fmt, extra_reg_data.begin(),
         extra_reg_data.size(), xsave_layout_from_trace(cpuid_records()));
     if (!ok) {
-      FATAL() << "Invalid XSAVE data in trace";
+      //FATAL() << "Invalid XSAVE data in trace";
     }
   } else {
     ret.recorded_extra_regs = ExtraRegisters(arch);
@@ -1292,7 +1308,9 @@ void TraceWriter::close(CloseStatus status, const TraceUuid* uuid) {
   header.setCpuidRecords(
       Data::Reader(reinterpret_cast<const uint8_t*>(cpuid_records.data()),
                    cpuid_records.size() * sizeof(CPUIDRecord)));
+#if defined(__x86_64__) || defined(__i386__)
   header.setXcr0(xcr0());
+#endif
   header.setTicksSemantics(
     to_trace_ticks_semantics(PerfCounters::default_ticks_semantics()));
   header.setSyscallbufProtocolVersion(SYSCALLBUF_PROTOCOL_VERSION);

@@ -176,18 +176,20 @@ ReplaySession::ReplaySession(const std::string& dir, const Flags& flags)
         << "Trace was recorded with CPUID faulting enabled, but this\n"
            "system does not support CPUID faulting.";
   }
-  if (!has_cpuid_faulting() && !cpuid_compatible(trace_in.cpuid_records())) {
-    CLEAN_FATAL()
-        << "Trace was recorded on a machine with different CPUID values\n"
-           "and CPUID faulting is not enabled; replay will not work.";
-  }
   if (!PerfCounters::supports_ticks_semantics(ticks_semantics_)) {
     CLEAN_FATAL()
         << "Trace was recorded on a machine that defines ticks differently\n"
            "to this machine; replay will not work.";
   }
-
+#if defined(__i386__) || defined(__x86_64__)
+  if (!has_cpuid_faulting() && !cpuid_compatible(trace_in.cpuid_records())) {
+    CLEAN_FATAL()
+        << "Trace was recorded on a machine with different CPUID values\n"
+           "and CPUID faulting is not enabled; replay will not work.";
+  }
   check_xsave_compatibility(trace_in);
+#endif
+  (void)check_xsave_compatibility;
 }
 
 ReplaySession::ReplaySession(const ReplaySession& other)

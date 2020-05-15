@@ -432,6 +432,8 @@ static const char* target_description_name(uint32_t cpu_features) {
       return "i386-avx-linux.xml";
     case GdbConnection::CPU_64BIT | GdbConnection::CPU_AVX:
       return "amd64-avx-linux.xml";
+    case GdbConnection::CPU_AARCH64:
+      return "aarch64-core.xml";
     default:
       FATAL() << "Unknown features";
       return nullptr;
@@ -1259,7 +1261,7 @@ bool GdbConnection::process_packet() {
 
 void GdbConnection::notify_no_such_thread(const GdbRequest& req) {
   DEBUG_ASSERT(req.target == this->req.target && req.type == this->req.type);
-  
+
   /* '10' is the errno ECHILD.  We use it as a magic code to
    * notify the user that the thread that was the target of this
    * request has died, and either gdb didn't notice that, or rr

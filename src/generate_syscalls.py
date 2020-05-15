@@ -117,6 +117,9 @@ syscall_number_for_${syscall}(SupportedArch arch) {
     case x86_64:
       DEBUG_ASSERT(X64Arch::${syscall} >= 0);
       return X64Arch::${syscall};
+    case aarch64:
+      DEBUG_ASSERT(X64Arch::${syscall} >= 0);
+      return AA64Arch::${syscall};
     default:
       DEBUG_ASSERT(0 && "unsupported architecture");
       return -1;
