@@ -16,8 +16,12 @@
 /* need to include sys/mount.h before linux/fs.h */
 #include <sys/mount.h>
 
-#include <arpa/inet.h>
+#ifndef __aarch64__
 #include <asm/prctl.h>
+#include <x86intrin.h>
+#endif
+
+#include <arpa/inet.h>
 #include <assert.h>
 #include <ctype.h>
 #include <dirent.h>
@@ -71,8 +75,8 @@
 #include <sys/ipc.h>
 #include <sys/mman.h>
 #include <sys/msg.h>
-#include <sys/prctl.h>
 #include <sys/ptrace.h>
+#include <sys/prctl.h>
 #include <sys/quota.h>
 #include <sys/resource.h>
 #include <sys/select.h>
@@ -102,12 +106,13 @@
 #include <ucontext.h>
 #include <unistd.h>
 #include <utime.h>
-#include <x86intrin.h>
 
 #if defined(__i386__)
 #include "SyscallEnumsForTestsX86.generated"
 #elif defined(__x86_64__)
 #include "SyscallEnumsForTestsX64.generated"
+#elif defined(__aarch64__)
+#include "SyscallEnumsForTestsAA64.generated"
 #else
 #error Unknown architecture
 #endif
@@ -191,7 +196,13 @@ inline static void check_data(void* buf, size_t len) {
 /**
  * Return the current value of the time-stamp counter.
  */
-inline static uint64_t rdtsc(void) { return __rdtsc(); }
+inline static uint64_t rdtsc(void) {
+#ifdef __aarch64__
+  return 0;
+#else
+  return __rdtsc();
+#endif
+}
 
 /**
  * Perform some syscall that writes an event, i.e. is not syscall-buffered.

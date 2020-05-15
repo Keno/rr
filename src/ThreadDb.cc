@@ -16,10 +16,13 @@ extern "C" {
 #include "proc_service.h"
 }
 
+#if defined(__i386__) || defined(__x86_64__)
 #include <asm/prctl.h>
+#include <sys/reg.h>
+#endif
+
 #include <dlfcn.h>
 #include <linux/elf.h>
-#include <sys/reg.h>
 
 #define LIBRARY_NAME "libthread_db.so.1"
 
@@ -67,7 +70,7 @@ ps_err_e ps_lgetregs(struct ps_prochandle* h, lwpid_t rec_tid,
   rr::Task* task = h->thread_group->session()->find_task(rec_tid);
   DEBUG_ASSERT(task != nullptr);
 
-  struct ::user_regs_struct regs = task->regs().get_ptrace();
+  NativeArch::user_regs_struct regs = task->regs().get_ptrace();
   memcpy(result, static_cast<void*>(&regs), sizeof(regs));
   LOG(debug) << "ps_lgetregs OK";
   return PS_OK;
@@ -101,7 +104,8 @@ ps_err_e ps_get_thread_area(const struct ps_prochandle* h, lwpid_t rec_tid,
   }
   rr::Task* task = h->thread_group->session()->find_task(rec_tid);
   DEBUG_ASSERT(task != nullptr);
-
+  (void)val; (void)base;
+/*
   if (task->arch() == rr::x86) {
     unsigned int uval = static_cast<unsigned int>(val);
     for (auto& area : task->thread_areas()) {
@@ -114,6 +118,7 @@ ps_err_e ps_get_thread_area(const struct ps_prochandle* h, lwpid_t rec_tid,
     LOG(debug) << "ps_get_thread_area 32 failed";
     return PS_ERR;
   }
+
 
   uintptr_t result;
   switch (val) {
@@ -130,6 +135,8 @@ ps_err_e ps_get_thread_area(const struct ps_prochandle* h, lwpid_t rec_tid,
 
   *base = reinterpret_cast<psaddr_t>(result);
   return PS_OK;
+  */
+  return PS_ERR;
 }
 
 rr::ThreadDb::ThreadDb(pid_t tgid)

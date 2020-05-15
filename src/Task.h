@@ -3,7 +3,9 @@
 #ifndef RR_TASK_H_
 #define RR_TASK_H_
 
+#ifdef __i386__
 #include <asm/ldt.h>
+#endif
 
 #include <memory>
 #include <vector>
@@ -555,9 +557,11 @@ public:
     */
   int emulate_get_thread_area(int idx, struct ::user_desc& desc);
 
+/*
   const std::vector<struct ::user_desc>& thread_areas() {
     return thread_areas_;
   }
+*/
 
   void set_status(WaitStatus status) { wait_status = status; }
 
@@ -832,7 +836,9 @@ public:
     Registers regs;
     ExtraRegisters extra_regs;
     std::string prname;
+#ifdef __i386__
     std::vector<struct user_desc> thread_areas;
+#endif
     remote_ptr<struct syscallbuf_hdr> syscallbuf_child;
     size_t syscallbuf_size;
     size_t num_syscallbuf_bytes;
@@ -1110,10 +1116,12 @@ protected:
   Session* session_;
   // The thread group this belongs to.
   std::shared_ptr<ThreadGroup> tg;
+#if 0
   // Entries set by |set_thread_area()| or the |tls| argument to |clone()|
   // (when that's a user_desc). May be more than one due to different
   // entry_numbers.
   std::vector<struct user_desc> thread_areas_;
+#endif
   // The |stack| argument passed to |clone()|, which for
   // "threads" is the top of the user-allocated stack.
   remote_ptr<void> top_of_stack;

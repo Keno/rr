@@ -2,7 +2,6 @@
 
 #include "replay_syscall.h"
 
-#include <asm/prctl.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/futex.h>
@@ -929,6 +928,7 @@ static void rep_after_enter_syscall_arch(ReplayTask* t) {
                                         command != PTRACE_DETACH);
           break;
         }
+/*
         case PTRACE_SET_THREAD_AREA: {
           bool ok = true;
           struct ::user_desc desc = t->read_mem(
@@ -938,6 +938,7 @@ static void rep_after_enter_syscall_arch(ReplayTask* t) {
           }
           break;
         }
+*/
       }
       break;
     }

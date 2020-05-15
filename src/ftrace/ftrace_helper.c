@@ -201,10 +201,10 @@ static uint64_t file_offset(int fd) {
 }
 
 static uint64_t pad_output_to_page_size(int fd) {
-  char buf[PAGE_SIZE];
+  char buf[4096];
   uint64_t offset = file_offset(fd);
   memset(buf, 0, sizeof(buf));
-  ssize_t pad = ((offset + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1)) - offset;
+  ssize_t pad = ((offset + 4096 - 1) & ~(4096 - 1)) - offset;
   check(pad == write(fd, buf, pad));
   return offset + pad;
 }
@@ -216,7 +216,7 @@ static void write_final_output(void) {
                                                                   */
                                 0, /* little-endian */
                                 sizeof(long) };
-  const uint32_t page_size = PAGE_SIZE;
+  const uint32_t page_size = 4096;
   uint32_t ftrace_count;
   static const uint32_t zero = 0;
   static const uint32_t cpus = 1;

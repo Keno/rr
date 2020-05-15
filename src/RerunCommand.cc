@@ -112,8 +112,10 @@ static uint8_t user_regs_fields[16] = {
   offsetof(user_regs_struct, esp), offsetof(user_regs_struct, ebp),
   offsetof(user_regs_struct, esi), offsetof(user_regs_struct, edi),
 };
+#elif __aarch64__
+static uint8_t user_regs_fields[34] = {};
 #else
-#error Unsupported architecture
+#error "Unknown architecture"
 #endif
 
 static void print_hex(uint8_t* value, size_t size, FILE* out) {
@@ -168,8 +170,8 @@ static uint64_t seg_reg(const Registers& regs, uint8_t index) {
 static void print_regs(Task* t, FrameTime event, uint64_t instruction_count,
                        const RerunFlags& flags, FILE* out) {
   union {
-    struct user_regs_struct gp_regs;
-    uintptr_t regs_values[sizeof(struct user_regs_struct) / sizeof(uintptr_t)];
+    NativeArch::user_regs_struct gp_regs;
+    uintptr_t regs_values[sizeof(NativeArch::user_regs_struct) / sizeof(uintptr_t)];
   };
   bool got_gp_regs = false;
   const vector<TraceField>& fields = flags.singlestep_trace;
@@ -269,6 +271,8 @@ static void print_regs(Task* t, FrameTime event, uint64_t instruction_count,
               memset(value, 0, sizeof(value));
             }
             break;
+          default:
+            FATAL() << "Wrong architecture";
         }
         char buf[8];
         sprintf(buf, "xmm%d", field.reg_num);
@@ -301,6 +305,8 @@ static void print_regs(Task* t, FrameTime event, uint64_t instruction_count,
               memset(value, 0, sizeof(value));
             }
             break;
+          default:
+            FATAL() << "Wrong architecture";
         }
         char buf[8];
         sprintf(buf, "ymm%d", field.reg_num);

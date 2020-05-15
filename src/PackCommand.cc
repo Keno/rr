@@ -111,6 +111,7 @@ static void* process_files_thread(void* p) {
     }
     pair.second.size = stat_buf.st_size;
 
+/*
     blake2b_state b2_state;
     if (blake2b_init(&b2_state, sizeof(pair.second.hash.bytes))) {
       fprintf(stderr, "blake2b_init failed");
@@ -136,6 +137,7 @@ static void* process_files_thread(void* p) {
       fprintf(stderr, "blake2b_final failed");
       exit(1);
     }
+*/
   }
   return nullptr;
 }

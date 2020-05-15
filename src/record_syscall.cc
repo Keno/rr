@@ -3,8 +3,6 @@
 #include "record_syscall.h"
 
 #include <arpa/inet.h>
-#include <asm/ldt.h>
-#include <asm/prctl.h>
 #include <dirent.h>
 #include <elf.h>
 #include <errno.h>
@@ -2173,6 +2171,7 @@ static Switchable prepare_ptrace(RecordTask* t,
       }
       break;
     }
+#ifdef PTRACE_GETREGS
     case PTRACE_GETREGS: {
       RecordTask* tracee = verify_ptrace_target(t, syscall_state, pid);
       if (tracee) {
@@ -2213,6 +2212,7 @@ static Switchable prepare_ptrace(RecordTask* t,
       }
       break;
     }
+#endif
     case PTRACE_GETREGSET: {
       switch ((int)t->regs().arg3()) {
         case NT_PRSTATUS: {
@@ -2254,6 +2254,7 @@ static Switchable prepare_ptrace(RecordTask* t,
       }
       break;
     }
+#ifdef PTRACE_SETREGS
     case PTRACE_SETREGS: {
       RecordTask* tracee = verify_ptrace_target(t, syscall_state, pid);
       if (tracee) {
@@ -2286,6 +2287,7 @@ static Switchable prepare_ptrace(RecordTask* t,
       }
       break;
     }
+#endif
     case PTRACE_SETREGSET: {
       // The actual register effects are performed by
       // Task::on_syscall_exit_arch
@@ -2367,7 +2369,9 @@ static Switchable prepare_ptrace(RecordTask* t,
         }
       }
       break;
+      (void)widen_buffer_signed; (void)widen_buffer_unsigned;
     }
+/*
     case PTRACE_PEEKUSER: {
       RecordTask* tracee = verify_ptrace_target(t, syscall_state, pid);
       if (tracee) {
@@ -2430,6 +2434,7 @@ static Switchable prepare_ptrace(RecordTask* t,
       }
       break;
     }
+*/
     case PTRACE_SYSCALL:
     case PTRACE_SINGLESTEP:
     case PTRACE_SYSEMU:
@@ -2480,6 +2485,7 @@ static Switchable prepare_ptrace(RecordTask* t,
       }
       break;
     }
+#if 0
     case PTRACE_GET_THREAD_AREA:
     case PTRACE_SET_THREAD_AREA: {
       RecordTask* tracee = verify_ptrace_target(t, syscall_state, pid);
@@ -2518,6 +2524,7 @@ static Switchable prepare_ptrace(RecordTask* t,
       }
       break;
     }
+#endif
     case PTRACE_ARCH_PRCTL: {
       RecordTask* tracee = verify_ptrace_target(t, syscall_state, pid);
       if (tracee) {
@@ -2530,6 +2537,7 @@ static Switchable prepare_ptrace(RecordTask* t,
         }
         int code = (int)t->regs().arg4();
         switch (code) {
+#ifdef ARCH_GET_FS
           case ARCH_GET_FS:
           case ARCH_GET_GS: {
             bool ok = true;
@@ -2549,6 +2557,7 @@ static Switchable prepare_ptrace(RecordTask* t,
           case ARCH_SET_GS:
             syscall_state.emulate_result(0);
             break;
+#endif
           default:
             syscall_state.emulate_result(-EINVAL);
             break;
@@ -2661,7 +2670,7 @@ static void prepare_exit(RecordTask* t) {
 static void prepare_mmap_register_params(RecordTask* t) {
   Registers r = t->regs();
   if (t->session().enable_chaos() &&
-      !(r.arg4_signed() & (MAP_FIXED | MAP_32BIT)) && r.arg1() == 0) {
+      !(r.arg4_signed() & (MAP_FIXED /* | MAP_32BIT */)) && r.arg1() == 0) {
     // No address hint was provided. Randomize the allocation address.
     size_t len = r.arg2();
     if (r.arg4_signed() & MAP_GROWSDOWN) {
@@ -3943,6 +3952,7 @@ static Switchable rec_prepare_syscall_arch(RecordTask* t,
 
     case Arch::arch_prctl:
       switch ((int)regs.arg1_signed()) {
+#ifdef ARCH_SET_FS
         case ARCH_SET_FS:
         case ARCH_SET_GS:
           break;
@@ -3983,7 +3993,7 @@ static Switchable rec_prepare_syscall_arch(RecordTask* t,
           syscall_state.emulate_result(t->cpuid_mode);
           break;
         }
-
+#endif
         default:
           syscall_state.expect_errno = EINVAL;
           break;

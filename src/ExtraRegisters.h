@@ -53,7 +53,7 @@ public:
    * The data always uses our CPU's native XSAVE layout. When reading a trace,
    * we need to convert from the trace's CPU's XSAVE layout to our layout.
    */
-  enum Format { NONE, XSAVE };
+  enum Format { NONE, XSAVE, ARM_FPR };
 
   // Set values from raw data, with the given XSAVE layout. Returns false
   // if this could not be done.

@@ -1508,6 +1508,11 @@ static void __attribute__((noinline, used)) fake_syscall() {
                        "nop\n\t"
                        "nop\n\t"
                        "nop\n\t");
+#elif defined(__aarch64__)
+  __asm__ __volatile__("rr_syscall_addr: svc #0\n\t"
+                       "nop\n\t"
+                       "nop\n\t"
+                       "nop\n\t");
 #endif
 }
 

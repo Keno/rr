@@ -68,7 +68,7 @@ ReplaySession::MemoryRanges ReplaySession::always_free_address_space(
   // Assume 64-bit address spaces with the 47-bit user-space limitation,
   // for now.
   remote_ptr<void> addressable_max = uintptr_t(
-      sizeof(void*) == 8 ? uint64_t(1) << 47 : (uint64_t(1) << 32) - PAGE_SIZE);
+      sizeof(void*) == 8 ? uint64_t(1) << 47 : (uint64_t(1) << 32) - 4096);
   result.insert(MemoryRange(addressable_min, addressable_max));
   TraceReader tmp_reader(reader);
   bool found;
@@ -197,7 +197,7 @@ ReplaySession::ReplaySession(const ReplaySession& other)
       trace_frame(other.trace_frame),
       current_step(other.current_step),
       ticks_at_start_of_event(other.ticks_at_start_of_event),
-      cpuid_bug_detector(other.cpuid_bug_detector),
+      //cpuid_bug_detector(other.cpuid_bug_detector),
       last_siginfo_(other.last_siginfo_),
       flags_(other.flags_),
       fast_forward_status(other.fast_forward_status),
@@ -1704,7 +1704,7 @@ ReplayResult ReplaySession::replay_step(const StepConstraints& constraints) {
       DEBUG_ASSERT(!result.break_status.any_break());
       break;
     case TSTEP_ENTER_SYSCALL:
-      cpuid_bug_detector.notify_reached_syscall_during_replay(t);
+      //cpuid_bug_detector.notify_reached_syscall_during_replay(t);
       break;
     case TSTEP_EXIT_SYSCALL:
       if (constraints.is_singlestep()) {

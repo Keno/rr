@@ -7,16 +7,17 @@ class BaseSyscall(object):
     """
 
     # Take **kwargs and ignore to make life easier on RegularSyscall.
-    def __init__(self, x86=None, x64=None, **kwargs):
+    def __init__(self, x86=None, x64=None, generic=None, **kwargs):
         assert x86 or x64       # Must exist on one architecture.
         self.x86 = x86
         self.x64 = x64
+        self.generic = generic
         assert len(kwargs) is 0
 
 class RestartSyscall(BaseSyscall):
     """A special class for the restart_syscall syscall."""
-    def __init__(self, x86=None, x64=None):
-        BaseSyscall.__init__(self, x86=x86, x64=x64)
+    def __init__(self, x86=None, x64=None, generic=None):
+        BaseSyscall.__init__(self, x86=x86, x64=x64, generic=None)
 
 class UnsupportedSyscall(BaseSyscall):
     """A syscall that is unsupported by rr.
@@ -25,8 +26,8 @@ class UnsupportedSyscall(BaseSyscall):
     can be displayed in error messages, if nothing else.  They also serve as
     useful documentation.
     """
-    def __init__(self, x86=None, x64=None):
-        BaseSyscall.__init__(self, x86=x86, x64=x64)
+    def __init__(self, x86=None, x64=None, generic=None):
+        BaseSyscall.__init__(self, x86=x86, x64=x64, generic=None)
 
 class InvalidSyscall(UnsupportedSyscall):
     """A syscall that is unsupported by rr and unimplemented by Linux.
@@ -36,7 +37,7 @@ class InvalidSyscall(UnsupportedSyscall):
     of rr's syscall support.
     """
     def __init__(self, x86=None, x64=None):
-        UnsupportedSyscall.__init__(self, x86=x86, x64=x64)
+        UnsupportedSyscall.__init__(self, x86=x86, x64=x64, generic=None)
 
 class RegularSyscall(BaseSyscall):
     """A syscall for which replay information may be recorded automatically.
@@ -75,7 +76,7 @@ class IrregularEmulatedSyscall(BaseSyscall):
 #
 # The exit() function causes normal process termination and the value
 # of status & 0377 is returned to the parent (see wait(2)).
-exit = IrregularEmulatedSyscall(x86=1, x64=60)
+exit = IrregularEmulatedSyscall(x86=1, x64=60, generic=93)
 
 # Obsolete, glibc calls clone() instead.
 # But Google Breakpad uses it!
@@ -87,7 +88,7 @@ fork = IrregularEmulatedSyscall(x86=2, x64=57)
 # into the buffer starting at buf.
 #
 # CHECKED: (trace->recorded_regs.eax > 0)
-read = IrregularEmulatedSyscall(x86=3, x64=0)
+read = IrregularEmulatedSyscall(x86=3, x64=0, generic=63)
 
 #  ssize_t write(int fd, const void *buf, size_t count);
 #
@@ -99,7 +100,7 @@ read = IrregularEmulatedSyscall(x86=3, x64=0)
 #
 # Note: write isn't irregular per se; we hook it to redirect output
 # to stdout/stderr during replay.
-write = IrregularEmulatedSyscall(x86=4, x64=1)
+write = IrregularEmulatedSyscall(x86=4, x64=1, generic=64)
 
 #  int open(const char *pathname, int flags)
 #  int open(const char *pathname, int flags, mode_t mode)
@@ -118,7 +119,7 @@ open = IrregularEmulatedSyscall(x86=5, x64=2)
 # on the file it was associated with, and owned by the process, are
 # removed (regardless of the file descriptor that was used to obtain
 # the lock).
-close = IrregularEmulatedSyscall(x86=6, x64=3)
+close = IrregularEmulatedSyscall(x86=6, x64=3, generic=57)
 
 #  pid_t waitpid(pid_t pid, int *status, int options);
 #

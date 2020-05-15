@@ -359,7 +359,7 @@ private:
   TraceFrame trace_frame;
   ReplayTraceStep current_step;
   Ticks ticks_at_start_of_event;
-  CPUIDBugDetector cpuid_bug_detector;
+  //CPUIDBugDetector cpuid_bug_detector;
   siginfo_t last_siginfo_;
   Flags flags_;
   FastForwardStatus fast_forward_status;

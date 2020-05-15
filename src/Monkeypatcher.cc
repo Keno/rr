@@ -345,6 +345,13 @@ bool patch_syscall_with_hook_arch<X64Arch>(Monkeypatcher& patcher,
                                                                     hook);
 }
 
+template <>
+bool patch_syscall_with_hook_arch<AA64Arch>(Monkeypatcher&,
+                                           RecordTask*,
+                                           const syscall_patch_hook&) {
+  return false;
+}
+
 static bool patch_syscall_with_hook(Monkeypatcher& patcher, RecordTask* t,
                                     const syscall_patch_hook& hook) {
   RR_ARCH_FUNCTION(patch_syscall_with_hook_arch, t->arch(), patcher, t, hook);
@@ -918,7 +925,25 @@ void patch_after_exec_arch<X64Arch>(RecordTask* t, Monkeypatcher& patcher) {
 }
 
 template <>
+void patch_after_exec_arch<AA64Arch>(RecordTask*, Monkeypatcher&) {
+}
+
+template <>
 void patch_at_preload_init_arch<X64Arch>(RecordTask* t,
+                                         Monkeypatcher& patcher) {
+  auto params = t->read_mem(
+      remote_ptr<rrcall_init_preload_params<X64Arch>>(t->regs().arg1()));
+  if (!params.syscallbuf_enabled) {
+    return;
+  }
+
+  patcher.init_dynamic_syscall_patching(t, params.syscall_patch_hook_count,
+                                        params.syscall_patch_hooks);
+}
+
+
+template <>
+void patch_at_preload_init_arch<AA64Arch>(RecordTask* t,
                                          Monkeypatcher& patcher) {
   auto params = t->read_mem(
       remote_ptr<rrcall_init_preload_params<X64Arch>>(t->regs().arg1()));

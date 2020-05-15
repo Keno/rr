@@ -155,6 +155,8 @@ enum GdbRegister {
   DREG_NUM_LINUX_X86_64,
   // Last register we can find in user_regs_struct (except for orig_rax).
   DREG_64_NUM_USER_REGS = DREG_64_GS + 1,
+
+  DREG_NUM_LINUX_AARCH64 = 33,
 };
 
 } // namespace rr

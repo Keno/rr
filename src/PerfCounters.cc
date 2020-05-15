@@ -70,6 +70,7 @@ enum CpuMicroarch {
   IntelCometlake,
   AMDF15R30,
   AMDRyzen,
+  AWSGraviton2
 };
 
 /*
@@ -137,20 +138,22 @@ static const PmuConfig pmu_configs[] = {
   { AMDF15R30, "AMD Family 15h Revision 30h", 0xc4, 0xc6, 0, 250,
     PMU_TICKS_TAKEN_BRANCHES | PMU_SKIP_INTEL_BUG_CHECK },
   { AMDRyzen, "AMD Ryzen", 0x5100d1, 0, 0, 1000, PMU_TICKS_RCB },
+  { AWSGraviton2, "AWS Graviton 2", 0x13, 0x08, 0x09, 1000, PMU_TICKS_RCB }
 };
 
 #define RR_SKID_MAX 1000
 
+/**
+ * Return the detected, known microarchitecture of this CPU, or don't
+ * return; i.e. never return UnknownCpu.
+ */
+#if defined(__i386__) || defined(__x86_64__)
 static string lowercase(const string& s) {
   string c = s;
   transform(c.begin(), c.end(), c.begin(), ::tolower);
   return c;
 }
 
-/**
- * Return the detected, known microarchitecture of this CPU, or don't
- * return; i.e. never return UnknownCpu.
- */
 static CpuMicroarch get_cpu_microarch() {
   string forced_uarch = lowercase(Flags::get().forced_uarch);
   if (!forced_uarch.empty()) {
@@ -253,6 +256,11 @@ static CpuMicroarch get_cpu_microarch() {
   }
   return UnknownCpu; // not reached
 }
+#elif defined(__aarch64__)
+static CpuMicroarch get_cpu_microarch() {
+  return AWSGraviton2;
+}
+#endif
 
 static void init_perf_event_attr(struct perf_event_attr* attr,
                                  perf_type_id type, unsigned config) {
@@ -375,6 +383,7 @@ static void check_for_kvm_in_txcp_bug() {
 }
 
 static void check_for_xen_pmi_bug() {
+#if defined(__x86_64__) || defined(__i386__)
   int32_t count = -1;
   struct perf_event_attr attr = rr::ticks_attr;
   attr.sample_period = NUM_BRANCHES - 1;
@@ -515,6 +524,9 @@ static void check_for_xen_pmi_bug() {
              "fail.";
     }
   }
+#else
+  has_xen_pmi_bug = false;
+#endif
 }
 
 static void check_working_counters() {

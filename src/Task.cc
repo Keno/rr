@@ -2,7 +2,10 @@
 
 #include "Task.h"
 
+#if defined(__i386__) || defined(__x86_64__)
 #include <asm/prctl.h>
+#endif
+
 #include <asm/ptrace.h>
 #include <elf.h>
 #include <errno.h>
@@ -525,9 +528,11 @@ void Task::on_syscall_exit_arch(int syscallno, const Registers& regs) {
       break;
     }
 
+/*
     case Arch::set_thread_area:
       set_thread_area(regs.arg1());
       return;
+*/
 
     case Arch::prctl:
       switch ((int)regs.arg1_signed()) {
@@ -602,6 +607,7 @@ void Task::on_syscall_exit_arch(int syscallno, const Registers& regs) {
       pid_t pid = (pid_t)regs.arg2_signed();
       Task* tracee = session().find_task(pid);
       switch ((int)regs.arg1_signed()) {
+#ifdef PTRACE_SETREGS
         case PTRACE_SETREGS: {
           auto data = read_mem(
               remote_ptr<typename Arch::user_regs_struct>(regs.arg4()));
@@ -626,6 +632,7 @@ void Task::on_syscall_exit_arch(int syscallno, const Registers& regs) {
           set_extra_regs(r);
           break;
         }
+#endif
         case PTRACE_SETREGSET: {
           switch ((int)regs.arg3()) {
             case NT_PRSTATUS: {
@@ -645,6 +652,7 @@ void Task::on_syscall_exit_arch(int syscallno, const Registers& regs) {
               tracee->set_extra_regs(r);
               break;
             }
+#ifdef NT_X86_XSTATE
             case NT_X86_XSTATE: {
               switch (tracee->extra_regs().format()) {
                 case ExtraRegisters::XSAVE: {
@@ -672,6 +680,7 @@ void Task::on_syscall_exit_arch(int syscallno, const Registers& regs) {
                                          "prepare_ptrace";
               }
               break;
+#endif
             }
             default:
               ASSERT(this, false) << "Unknown regset type; Should have been "
@@ -680,6 +689,7 @@ void Task::on_syscall_exit_arch(int syscallno, const Registers& regs) {
           }
           break;
         }
+/*
         case PTRACE_POKEUSER: {
           size_t addr = regs.arg3();
           typename Arch::unsigned_word data = regs.arg4();
@@ -696,9 +706,11 @@ void Task::on_syscall_exit_arch(int syscallno, const Registers& regs) {
           }
           break;
         }
+*/
         case PTRACE_ARCH_PRCTL: {
           int code = (int)regs.arg4();
           switch (code) {
+#ifdef ARCH_GET_FS
             case ARCH_GET_FS:
             case ARCH_GET_GS:
               break;
@@ -719,6 +731,7 @@ void Task::on_syscall_exit_arch(int syscallno, const Registers& regs) {
               tracee->set_regs(r);
               break;
             }
+#endif
             default:
               ASSERT(tracee, 0) << "Should have detected this earlier";
           }
@@ -898,7 +911,7 @@ void Task::post_exec(const string& exe_file) {
   preload_globals = nullptr;
   thread_group()->execed = true;
 
-  thread_areas_.clear();
+  //thread_areas_.clear();
   memset(&thread_locals, 0, sizeof(thread_locals));
 
   as = session().create_vm(this, exe_file, as->uid().exec_count() + 1);
@@ -953,6 +966,7 @@ const Registers& Task::regs() const {
 
 const ExtraRegisters& Task::extra_regs() {
   if (!extra_registers_known) {
+#if defined(__i386__) || defined(__x86_64__)
     if (xsave_area_size() > 512) {
       LOG(debug) << "  (refreshing extra-register cache using XSAVE)";
 
@@ -979,23 +993,48 @@ const ExtraRegisters& Task::extra_regs() {
       extra_registers.format_ = ExtraRegisters::XSAVE;
       extra_registers.data_.resize(sizeof(user_fpregs_struct));
       xptrace(PTRACE_GETFPREGS, nullptr, extra_registers.data_.data());
+#endif
+    }
+#elif defined(__aarch64__)
+    LOG(debug) << "  (refreshing extra-register cache using FPR)";
+
+    extra_registers.format_ = ExtraRegisters::ARM_FPR;
+    extra_registers.data_.resize(sizeof(AA64Arch::user_fpsimd_state));
+    struct iovec vec = { extra_registers.data_.data(),
+                          extra_registers.data_.size() };
+    xptrace(PTRACE_GETREGSET, NT_PRFPREG, &vec);
+    extra_registers.data_.resize(vec.iov_len);
 #else
 #error need to define new extra_regs support
 #endif
-    }
-
     extra_registers_known = true;
   }
   return extra_registers;
 }
 
 static ssize_t dr_user_word_offset(size_t i) {
+#if defined(__i386__) || defined(__x86_64__)
   DEBUG_ASSERT(i < NUM_X86_DEBUG_REGS);
-  return offsetof(struct user, u_debugreg[0]) + sizeof(void*) * i;
+    "Expected offsets to be the same");
+  return offsetof(NativeArch::user, u_debugreg[0]) + sizeof(void*) * i;
+#else
+  (void)i;
+  FATAL() << "Shouldn't have reached here";
+  return 0;
+#endif
 }
 
 uintptr_t Task::debug_status() {
-  return fallible_ptrace(PTRACE_PEEKUSER, dr_user_word_offset(6), nullptr);
+  switch (arch()) {
+    case SupportedArch::x86:
+    case SupportedArch::x86_64:
+      return fallible_ptrace(PTRACE_PEEKUSER, dr_user_word_offset(6), nullptr);
+    case SupportedArch::aarch64:
+      return 0;
+    default:
+     FATAL() << "Unknown";
+     __builtin_unreachable();
+  }
 }
 
 void Task::set_debug_status(uintptr_t status) {
@@ -1268,12 +1307,20 @@ void Task::flush_regs() {
   if (registers_dirty) {
     LOG(debug) << "Flushing registers for tid " << tid << " " << registers;
     auto ptrace_regs = registers.get_ptrace();
+#if defined(__x86_64__) || defined(__i386__)
     if (ptrace_if_alive(PTRACE_SETREGS, nullptr, &ptrace_regs)) {
       /* It's ok for flush regs to fail, e.g. if the task got killed underneath
        * us - we just need to remember not to trust any value we would load
        * from ptrace otherwise */
       registers_dirty = false;
     }
+#else
+    struct iovec vec = { &ptrace_regs,
+                          sizeof(ptrace_regs) };
+    if (ptrace_if_alive(PTRACE_SETREGSET, NT_PRSTATUS, &vec)) {
+      registers_dirty = false;
+    }
+#endif
   }
 }
 
@@ -1285,6 +1332,7 @@ void Task::set_extra_regs(const ExtraRegisters& regs) {
   extra_registers_known = true;
 
   switch (extra_registers.format()) {
+#if defined(__i386__) || defined(__x86_64__)
     case ExtraRegisters::XSAVE: {
       if (xsave_area_size() > 512) {
         struct iovec vec = { extra_registers.data_.data(),
@@ -1301,12 +1349,20 @@ void Task::set_extra_regs(const ExtraRegisters& regs) {
                extra_registers.data_.size() == sizeof(user_fpregs_struct));
         ptrace_if_alive(PTRACE_SETFPREGS, nullptr,
                         extra_registers.data_.data());
-#else
-#error Unsupported architecture
 #endif
       }
       break;
     }
+#elif defined(__aarch64__)
+    case ExtraRegisters::ARM_FPR: {
+      struct iovec vec = { extra_registers.data_.data(),
+                            extra_registers.data_.size() };
+      ptrace_if_alive(PTRACE_SETREGSET, NT_PRFPREG, &vec);
+      break;
+    }
+#else
+#error Unsupported architecture
+#endif
     default:
       ASSERT(this, false) << "Unexpected ExtraRegisters format";
   }
@@ -1433,6 +1489,7 @@ bool Task::set_debug_reg(size_t regno, uintptr_t value) {
   return errno == ESRCH || errno == 0;
 }
 
+/*
 static void set_thread_area(std::vector<struct user_desc>& thread_areas_,
                             user_desc desc) {
   for (auto& t : thread_areas_) {
@@ -1467,6 +1524,7 @@ int Task::emulate_get_thread_area(int idx, struct ::user_desc& desc) {
   fallible_ptrace(PTRACE_GET_THREAD_AREA, idx, &desc);
   return errno;
 }
+*/
 
 pid_t Task::tgid() const { return tg->tgid; }
 
@@ -1725,10 +1783,11 @@ void Task::did_waitpid(WaitStatus status) {
     // task's register values are not what they should be.
     if (!is_stopped && !registers_dirty) {
       LOG(debug) << "Requesting registers from tracee " << tid;
-      struct user_regs_struct ptrace_regs;
+      NativeArch::user_regs_struct ptrace_regs;
+
+  #if defined(__i386__) || defined(__x86_64__)
       if (ptrace_if_alive(PTRACE_GETREGS, nullptr, &ptrace_regs)) {
         registers.set_from_ptrace(ptrace_regs);
-  #if defined(__i386__) || defined(__x86_64__)
         // Check the architecture of the task by looking at the
         // cs segment register and checking if that segment is a long mode segment
         // (Linux always uses GDT entries for this, which are globally the same).
@@ -1737,6 +1796,11 @@ void Task::did_waitpid(WaitStatus status) {
           registers.set_arch(a);
           registers.set_from_ptrace(ptrace_regs);
         }
+  #elif defined(__aarch64__)
+      struct iovec vec = { &ptrace_regs,
+                          sizeof(ptrace_regs) };
+      if (ptrace_if_alive(PTRACE_GETREGSET, NT_PRSTATUS, &vec)) {
+        registers.set_from_ptrace(ptrace_regs);
   #else
   #error detect architecture here
   #endif
@@ -1877,7 +1941,8 @@ bool Task::try_wait() {
 template <typename Arch>
 static void set_thread_area_from_clone_arch(Task* t, remote_ptr<void> tls) {
   if (Arch::clone_tls_type == Arch::UserDescPointer) {
-    t->set_thread_area(tls.cast<struct user_desc>());
+    (void)t; (void)tls;
+    //t->set_thread_area(tls.cast<struct user_desc>());
   }
 }
 
@@ -1971,7 +2036,7 @@ Task* Task::clone(CloneReason reason, int flags, remote_ptr<void> stack,
   t->tg->insert_task(t);
 
   t->open_mem_fd_if_needed();
-  t->thread_areas_ = thread_areas_;
+  //t->thread_areas_ = thread_areas_;
   if (CLONE_SET_TLS & flags) {
     set_thread_area_from_clone(t, tls);
   }
@@ -2072,8 +2137,9 @@ Task* Task::os_clone_into(const CapturedState& state,
 }
 
 template <typename Arch>
-static void copy_tls_arch(const Task::CapturedState& state,
-                          AutoRemoteSyscalls& remote) {
+static void copy_tls_arch(const Task::CapturedState&,
+                          AutoRemoteSyscalls&) {
+/*
   if (Arch::clone_tls_type == Arch::UserDescPointer) {
     for (const auto& t : state.thread_areas) {
       AutoRestoreMem remote_tls(remote, (const uint8_t*)&t, sizeof(t));
@@ -2083,6 +2149,7 @@ static void copy_tls_arch(const Task::CapturedState& state,
           remote_tls.get().as_int());
     }
   }
+*/
 }
 
 static void copy_tls(const Task::CapturedState& state,
@@ -2122,7 +2189,7 @@ Task::CapturedState Task::capture_state() {
   state.regs = regs();
   state.extra_regs = extra_regs();
   state.prname = prname;
-  state.thread_areas = thread_areas_;
+  //state.thread_areas = thread_areas_;
   state.desched_fd_child = desched_fd_child;
   state.cloned_file_data_fd_child = cloned_file_data_fd_child;
   state.cloned_file_data_fname = cloned_file_data_fname;
@@ -2160,7 +2227,7 @@ void Task::copy_state(const CapturedState& state) {
     }
 
     copy_tls(state, remote);
-    thread_areas_ = state.thread_areas;
+    //thread_areas_ = state.thread_areas;
     syscallbuf_size = state.syscallbuf_size;
 
     ASSERT(this, !syscallbuf_child)
@@ -2837,7 +2904,9 @@ static void run_initial_child(Session& session, const ScopedFd& error_fd,
   }
   syscall(SYS_write, -1, &sum, sizeof(sum));
 
+#if defined(__x86_64__) || defined(__i386__)
   CPUIDBugDetector::run_detection_code();
+#endif
 
   execve(exe_path_cstr, argv_array, envp_array);
 

@@ -4,9 +4,12 @@
 // ERANGE, which other headers below #undef :-(
 #include "remote_ptr.h"
 
+#ifdef __i386__
+#include <asm/ldt.h>
+#endif
+
 // Get all the kernel definitions so we can verify our alternative versions.
 #include <arpa/inet.h>
-#include <asm/ldt.h>
 #include <dirent.h>
 #include <elf.h>
 #include <fcntl.h>
@@ -51,6 +54,7 @@
 
 // Used to verify definitions in kernel_abi.h
 namespace rr {
+#if defined(__i386__) || defined(__x86_64__)
 #define RR_VERIFY_TYPE_ARCH(arch_, system_type_, rr_type_)                     \
   static_assert(Verifier<arch_, system_type_, rr_type_>::same_size,            \
                 "type " #system_type_ " not correctly defined");
@@ -61,6 +65,7 @@ namespace rr {
 
 // For instances where the system type and the rr type are named identically.
 #define RR_VERIFY_TYPE(type_) RR_VERIFY_TYPE_EXPLICIT(::type_, type_)
+#endif
 }
 
 #include "kernel_abi.h"

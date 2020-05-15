@@ -762,6 +762,7 @@ bool xsave_enabled() {
 }
 
 uint64_t xcr0() {
+#if defined(__i386__) || defined(__x86_64__)
   if (!xsave_enabled()) {
     // Assume x87/SSE enabled.
     return 3;
@@ -771,15 +772,24 @@ uint64_t xcr0() {
                : "=a"(eax), "=d"(edx)
                : "c"(0));
   return (uint64_t(edx) << 32) | eax;
+#else
+  assert(0 && "should not have reached here");
+#endif
 }
 
 CPUIDData cpuid(uint32_t code, uint32_t subrequest) {
+#if defined(__i386__) || defined(__x86_64__)
   CPUIDData result;
   asm volatile("cpuid"
                : "=a"(result.eax), "=b"(result.ebx), "=c"(result.ecx),
                  "=d"(result.edx)
                : "a"(code), "c"(subrequest));
   return result;
+#else
+  (void)code; (void)subrequest;
+  FATAL() << "should not have reached here";
+  __builtin_unreachable();
+#endif
 }
 
 #define SEGV_HANDLER_MAGIC 0x98765432
@@ -795,7 +805,8 @@ static void cpuid_segv_handler(__attribute__((unused)) int sig,
   ctx->uc_mcontext.gregs[REG_RIP] += 2;
   ctx->uc_mcontext.gregs[REG_RAX] = SEGV_HANDLER_MAGIC;
 #else
-#error unknown architecture
+  (void)ctx; (void)user;
+  assert(0 && "should not have reached here");
 #endif
 }
 

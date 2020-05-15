@@ -50,7 +50,7 @@ configure_file(
   ${CMAKE_BINARY_DIR}/git_revision.h
 )
 
-set(FLAGS_COMMON "-msse2 -D__MMX__ -D__SSE__ -D__SSE2__ -D__USE_LARGEFILE64 -pthread")
+set(FLAGS_COMMON "-D__USE_LARGEFILE64 -pthread")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${FLAGS_COMMON} -Wstrict-prototypes -std=gnu11")
 # Define __STDC_LIMIT_MACROS so |#include <stdint.h>| works as expected.
 # Define __STDC_FORMAT_MACROS so |#include <inttypes.h>| works as expected.
@@ -107,6 +107,12 @@ endif()
 
 option(force32bit "Force a 32-bit rr build, rather than both 64 and 32-bit. rr will only be able to record and replay 32-bit processes.")
 option(disable32bit "On a 64-bit platform, avoid requiring a 32-bit cross-compilation toolchain by not building 32-bit components. rr will be able to record 32-bit processes but not replay them.")
+
+if(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "aarch64")
+  set(disable32bit true)
+else()
+  set(COMMON_FLAGS ${COMMON_FLAGS} -msse2 -D__MMX__ -D__SSE__ -D__SSE2__ )
+endif()
 
 if(force32bit)
   set(rr_32BIT true)
@@ -323,13 +329,13 @@ set(PRELOAD_SOURCE_FILES
   preload_interface.h
   syscallbuf.h
 )
-add_library(rrpreload)
-foreach(file ${PRELOAD_FILES})
-  target_sources(rrpreload PUBLIC "${CMAKE_SOURCE_DIR}/src/preload/${file}")
-  set_source_files_properties("${CMAKE_SOURCE_DIR}/src/preload/${file}"
-                              PROPERTIES COMPILE_FLAGS ${PRELOAD_COMPILE_FLAGS})
-endforeach(file)
-set_target_properties(rrpreload PROPERTIES LINK_FLAGS "-nostartfiles")
+#add_library(rrpreload)
+#foreach(file ${PRELOAD_FILES})
+#  target_sources(rrpreload PUBLIC "${CMAKE_SOURCE_DIR}/src/preload/${file}")
+#  set_source_files_properties("${CMAKE_SOURCE_DIR}/src/preload/${file}"
+#                              PROPERTIES COMPILE_FLAGS ${PRELOAD_COMPILE_FLAGS})
+#endforeach(file)
+#set_target_properties(rrpreload PROPERTIES LINK_FLAGS "-nostartfiles")
 
 set(AUDIT_FILES
   rtld-audit.c
@@ -342,13 +348,13 @@ set(AUDIT_SOURCE_FILES
   stap-note-iter.h
   ../preload/preload_interface.h
 )
-add_library(rraudit)
-foreach(file ${AUDIT_FILES})
-  target_sources(rraudit PUBLIC "${CMAKE_SOURCE_DIR}/src/audit/${file}")
-  set_source_files_properties("${CMAKE_SOURCE_DIR}/src/audit/${file}"
-                              PROPERTIES COMPILE_FLAGS ${PRELOAD_COMPILE_FLAGS})
-endforeach(file)
-set_target_properties(rraudit PROPERTIES LINK_FLAGS "-nostartfiles -ldl")
+#add_library(rraudit)
+#foreach(file ${AUDIT_FILES})
+#  target_sources(rraudit PUBLIC "${CMAKE_SOURCE_DIR}/src/audit/${file}")
+#  set_source_files_properties("${CMAKE_SOURCE_DIR}/src/audit/${file}"
+#                              PROPERTIES COMPILE_FLAGS ${PRELOAD_COMPILE_FLAGS})
+#endforeach(file)
+#set_target_properties(rraudit PROPERTIES LINK_FLAGS "-nostartfiles -ldl")
 
 # Ensure that CMake knows about our generated files.
 #
@@ -356,14 +362,24 @@ set_target_properties(rraudit PROPERTIES LINK_FLAGS "-nostartfiles -ldl")
 set(GENERATED_FILES
   AssemblyTemplates.generated
   CheckSyscallNumbers.generated
+  SyscallnameArch.generated
+  SyscallRecordCase.generated
+  SyscallHelperFunctions.generated
+)
+
+if(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "aarch64")
+set(GENERATED_FILES ${GENERATED_FILES}
+  SyscallEnumsAA64.generated
+  SyscallEnumsForTestsAA64.generated
+)
+else()
+set(GENERATED_FILES ${GENERATED_FILES}
   SyscallEnumsX64.generated
   SyscallEnumsX86.generated
   SyscallEnumsForTestsX64.generated
   SyscallEnumsForTestsX86.generated
-  SyscallHelperFunctions.generated
-  SyscallnameArch.generated
-  SyscallRecordCase.generated
 )
+endif()
 
 foreach(generated_file ${GENERATED_FILES})
   set_source_files_properties(${generated_file}
@@ -414,7 +430,7 @@ set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/rr_trace.capnp.h"
                             PROPERTIES GENERATED true HEADER_FILE_ONLY true)
 
 set(RR_SOURCES
-  src/test/cpuid_loop.S
+#  src/test/cpuid_loop.S
   src/AddressSpace.cc
   src/AutoRemoteSyscalls.cc
   src/BuildidCommand.cc
@@ -422,7 +438,7 @@ set(RR_SOURCES
   src/CompressedReader.cc
   src/CompressedWriter.cc
   src/CPUFeaturesCommand.cc
-  src/CPUIDBugDetector.cc
+#  src/CPUIDBugDetector.cc
   src/DiversionSession.cc
   src/DumpCommand.cc
   src/Dwarf.cc
@@ -488,7 +504,7 @@ set(RR_SOURCES
   src/util.cc
   src/WaitStatus.cc
   ${CMAKE_CURRENT_BINARY_DIR}/rr_trace.capnp.c++
-  third-party/blake2/blake2b.c
+#  third-party/blake2/blake2b.c
 )
 
 set_source_files_properties(${RR_SOURCES}
@@ -560,9 +576,9 @@ else()
   target_link_libraries(rr ${CAPNP_LDFLAGS})
 endif()
 
-target_link_libraries(rrpreload
-  ${CMAKE_DL_LIBS}
-)
+#target_link_libraries(rrpreload
+#  ${CMAKE_DL_LIBS}
+#)
 
 add_executable(rr_exec_stub src/exec_stub.c)
 post_build_executable(rr_exec_stub)
@@ -594,13 +610,13 @@ foreach(file ${RR_GDB_RESOURCES})
           DESTINATION ${CMAKE_INSTALL_DATADIR}/rr)
 endforeach(file)
 
-foreach(file ${PRELOAD_SOURCE_FILES})
-  configure_file("${CMAKE_CURRENT_SOURCE_DIR}/src/preload/${file}"
-                 "${CMAKE_CURRENT_BINARY_DIR}/share/rr/src/preload/${file}"
-                 COPYONLY)
-  install(FILES src/preload/${file}
-          DESTINATION ${CMAKE_INSTALL_DATADIR}/rr/src/preload)
-endforeach(file)
+#foreach(file ${PRELOAD_SOURCE_FILES})
+#  configure_file("${CMAKE_CURRENT_SOURCE_DIR}/src/preload/${file}"
+#                 "${CMAKE_CURRENT_BINARY_DIR}/share/rr/src/preload/${file}"
+#                 COPYONLY)
+#  install(FILES src/preload/${file}
+#          DESTINATION ${CMAKE_INSTALL_DATADIR}/rr/src/preload)
+#endforeach(file)
 
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/scripts/rr-collect-symbols.py"
                "${CMAKE_CURRENT_BINARY_DIR}/bin/rr-collect-symbols.py"
@@ -619,7 +635,7 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/share/rr/rr_page_64
 install(PROGRAMS scripts/rr_completion
   DESTINATION ${CMAKE_INSTALL_DATADIR}/bash-completion/completions RENAME rr)
 
-install(TARGETS ${RR_BIN} rrpreload rr_exec_stub
+install(TARGETS ${RR_BIN} rr_exec_stub
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}/rr
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}/rr)
@@ -714,7 +730,7 @@ set(BASIC_TESTS
   arch_prctl
   async_segv_ignored
   at_threadexit
-  bad_ip
+#  bad_ip
   bad_syscall
   barrier
   big_buffers
@@ -724,7 +740,7 @@ set(BASIC_TESTS
   brk2
   capget
   chew_cpu
-  chew_cpu_cpuid
+#  chew_cpu_cpuid
   chmod
   chown
   clock
@@ -745,7 +761,7 @@ set(BASIC_TESTS
   constructor
   copy_file_range
   creat_address_not_truncated
-  cross_arch
+#  cross_arch
   cwd_inaccessible
   daemon
   desched_blocking_poll
@@ -756,7 +772,7 @@ set(BASIC_TESTS
   epoll_create
   epoll_create1
   eventfd
-  exec_flags
+#  exec_flags
   exec_no_env
   exec_self
   exec_from_main_thread
@@ -785,8 +801,8 @@ set(BASIC_TESTS
   futex_exit_race_sigsegv
   futex_pi
   futex_priorities
-  fxregs
-  gdb_bogus_breakpoint
+#  fxregs
+#  gdb_bogus_breakpoint
   gcrypt_rdrand
   getcpu
   getgroups
@@ -799,9 +815,9 @@ set(BASIC_TESTS
   grandchild_threads_main_running
   grandchild_threads_thread_running
   grandchild_threads_parent_alive
-  hle
+#  hle
   inotify
-  int3
+#  int3
   intr_futex_wait_restart
   intr_poll
   intr_ppoll
@@ -824,14 +840,14 @@ set(BASIC_TESTS
   kcmp
   keyctl
   kill_newborn
-  kill_ptracee
+#  kill_ptracee
   legacy_ugid
-  lsl
+#  lsl
   madvise
   madvise_free
   madvise_wipeonfork
   map_fixed
-  map_shared_syscall
+#  map_shared_syscall
   membarrier
   memfd_create
   memfd_create_shared
@@ -843,7 +859,7 @@ set(BASIC_TESTS
   mmap_private_grow_under_map
   mmap_ro
   mmap_self_maps_shared
-  mmap_shared
+#  mmap_shared
   mmap_shared_dev_zero
   mmap_shared_grow
   mmap_shared_grow_under_map
@@ -854,7 +870,7 @@ set(BASIC_TESTS
   mmap_short_file
   mmap_write_complex
   mmap_zero_size_fd
-  modify_ldt
+#  modify_ldt
   mount_ns_exec
   mount_ns_exec2
   mprotect
@@ -882,7 +898,7 @@ set(BASIC_TESTS
   no_mask_timeslice
   nscd
   numa
-  old_fork
+#  old_fork
   orphan_process
   packet_mmap_disable
   pause
@@ -898,43 +914,43 @@ set(BASIC_TESTS
   prctl_name
   prctl_short_name
   prctl_speculation_ctrl
-  prctl_tsc
+#  prctl_tsc
   privileged_net_ioctl
   proc_fds
   proc_mem
   protect_rr_fds
   prw
   pthread_condvar_locking
-  ptrace
-  ptrace_attach_null_status
-  ptrace_attach_running
-  ptrace_attach_sleeping
-  ptrace_attach_stopped
-  ptrace_attach_thread_running
-  ptrace_breakpoint
-  ptrace_change_patched_syscall
-  ptrace_debug_regs
-  ptrace_exec
-  ptrace_exec32
-  ptrace_kill_grandtracee
-  ptrace_tls
-  ptrace_seize
-  ptrace_sigchld_blocked
-  ptrace_signals
-  ptrace_singlestep
-  ptrace_syscall
-  ptrace_syscall_clone_untraced
-  ptrace_sysemu
-  ptrace_sysemu_syscall
-  ptrace_trace_clone
-  ptrace_trace_exit
-  ptrace_traceme
-  ptracer_death
-  ptracer_death_multithread
-  ptracer_death_multithread_peer
+#  ptrace
+#  ptrace_attach_null_status
+#  ptrace_attach_running
+#  ptrace_attach_sleeping
+#  ptrace_attach_stopped
+#  ptrace_attach_thread_running
+#  ptrace_breakpoint
+#  ptrace_change_patched_syscall
+#  ptrace_debug_regs
+#  ptrace_exec
+#  ptrace_exec32
+#  ptrace_kill_grandtracee
+#  ptrace_tls
+#  ptrace_seize
+#  ptrace_sigchld_blocked
+#  ptrace_signals
+#  ptrace_singlestep
+#  ptrace_syscall
+#  ptrace_syscall_clone_untraced
+#  ptrace_sysemu
+#  ptrace_sysemu_syscall
+#  ptrace_trace_clone
+#  ptrace_trace_exit
+#  ptrace_traceme
+#  ptracer_death
+#  ptracer_death_multithread
+#  ptracer_death_multithread_peer
   # pivot_root ... disabled because it fails when run as root and does nothing otherwise
   quotactl
-  rdtsc
+#  rdtsc
   read_nothing
   readdir
   read_large
@@ -958,16 +974,16 @@ set(BASIC_TESTS
   sched_yield_to_lower_priority
   scm_rights
   scratch_read
-  seccomp
-  seccomp_clone_fail
-  seccomp_desched
-  seccomp_kill_exit
-  seccomp_null
-  seccomp_sigsys_args
-  seccomp_sigsys_sigtrap
-  seccomp_sigsys_syscallbuf
-  seccomp_tsync
-  seccomp_veto_exec
+#  seccomp
+#  seccomp_clone_fail
+#  seccomp_desched
+#  seccomp_kill_exit
+#  seccomp_null
+#  seccomp_sigsys_args
+#  seccomp_sigsys_sigtrap
+#  seccomp_sigsys_syscallbuf
+#  seccomp_tsync
+#  seccomp_veto_exec
   self_shebang
   self_sigint
   sem
@@ -989,7 +1005,7 @@ set(BASIC_TESTS
   sigcont
   sighandler_fork
   sighandler_mask
-  sigill
+#  sigill
   signal_deferred
   signal_during_preload_init
   signal_frame
@@ -1003,7 +1019,7 @@ set(BASIC_TESTS
   sigprocmask_rr_sigs
   sigprocmask_syscallbuf
   sigqueueinfo
-  sigreturn
+#  sigreturn
   sigreturn_reg
   sigreturnmask
   sigrt
@@ -1019,7 +1035,7 @@ set(BASIC_TESTS
   stack_growth_after_syscallbuf
   stack_growth_syscallbuf
   stack_growth_with_guard
-  stack_invalid
+#  stack_invalid
   stack_overflow
   stack_overflow_altstack
   stack_overflow_with_guard
@@ -1034,8 +1050,8 @@ set(BASIC_TESTS
   symlink
   sync
   sync_file_range
-  syscall_bp
-  syscall_in_writable_mem
+#  syscall_bp
+#  syscall_in_writable_mem
   syscallbuf_signal_reset
   syscallbuf_signal_blocking
   syscallbuf_sigstop
@@ -1044,7 +1060,7 @@ set(BASIC_TESTS
   sysconf
   sysctl
   sysemu_singlestep
-  sysfs
+#  sysfs
   sysinfo
   tgkill
   thread_yield
@@ -1099,8 +1115,8 @@ set(TESTS_WITH_PROGRAM
   block_clone_interrupted
   block_clone_syscallbuf_overflow
   block_intr_sigchld
-  blocked_bad_ip
-  blocked_sigill
+#  blocked_bad_ip
+#  blocked_sigill
   blocked_sigsegv
   breakpoint
   breakpoint_conditions
@@ -1119,7 +1135,7 @@ set(TESTS_WITH_PROGRAM
   conditional_breakpoint_calls
   conditional_breakpoint_offload
   condvar_stress
-  cpuid_singlestep
+#  cpuid_singlestep
   crash
   crash_in_function
   daemon_read
@@ -1150,15 +1166,15 @@ set(TESTS_WITH_PROGRAM
   ignored_sigsegv
   ignore_nested
   immediate_restart
-  int3_ok
+#  int3_ok
   interrupt
   intr_ptrace_decline
   invalid_jump
-  jit_proc_mem
+#  jit_proc_mem
   link
   madvise_dontfork
   main_thread_exit
-  mmap_replace_most_mappings
+#  mmap_replace_most_mappings
   mmap_shared_prot
   mmap_shared_write_exec_race
   mmap_tmpfs
@@ -1168,11 +1184,11 @@ set(TESTS_WITH_PROGRAM
   mprotect_syscallbuf_overflow
   mutex_pi_stress
   nested_detach_wait
-  overflow_branch_counter
-  patch_page_end
-  patch_40_80_f6_81
+#  overflow_branch_counter
+#  patch_page_end
+#  patch_40_80_f6_81
   priority
-  ptrace_remote_unmap
+#  ptrace_remote_unmap
   remove_latest_trace
   # Not called ps, because that interferes with using real 'ps' in tests
   rr_ps
@@ -1185,7 +1201,7 @@ set(TESTS_WITH_PROGRAM
   reverse_many_breakpoints
   reverse_step_long
   reverse_step_threads
-  reverse_step_threads_break
+#  reverse_step_threads_break
   search
   seccomp_blocks_rr
   seccomp_signals
@@ -1196,15 +1212,15 @@ set(TESTS_WITH_PROGRAM
   sigprocmask_race
   sigprocmask_rr_sigs_nondefault
   simple
-  singlestep_pushf
+#  singlestep_pushf
   stack_growth
   step_thread
-  string_instructions
-  string_instructions_async_signals
-  string_instructions_async_signals_shared
-  string_instructions_multiwatch
-  string_instructions_replay
-  string_instructions_watch
+#  string_instructions
+#  string_instructions_async_signals
+#  string_instructions_async_signals_shared
+#  string_instructions_multiwatch
+#  string_instructions_replay
+#  string_instructions_watch
   syscallbuf_fd_disabling
   syscallbuf_signal_blocking_read
   sysconf_onln
@@ -1233,7 +1249,7 @@ set(TESTS_WITH_PROGRAM
   watchpoint
   watchpoint_at_sched
   watchpoint_before_signal
-  watchpoint_no_progress
+#  watchpoint_no_progress
   watchpoint_size_change
   watchpoint_syscall
   watchpoint_unaligned
@@ -1255,10 +1271,10 @@ set(TESTS_WITHOUT_PROGRAM
   break_clock
   break_clone
   break_exec
-  break_int3
+#  break_int3
   break_mmap_private
   break_msg
-  break_rdtsc
+#  break_rdtsc
   break_sigreturn
   break_sync_signal
   break_thread
@@ -1325,7 +1341,7 @@ set(TESTS_WITHOUT_PROGRAM
   simple_winch
   stack_overflow_debug
   step1
-  step_rdtsc
+#  step_rdtsc
   step_signal
   string_instructions_break
   string_instructions_replay_quirk
@@ -1399,12 +1415,12 @@ if(BUILD_TESTS)
   target_link_libraries(constructor -lrt test_lib)
 
   # cpuid test needs to link with cpuid_loop.S
-  add_executable(cpuid src/test/cpuid.c src/test/cpuid_loop.S)
-  post_build_executable(cpuid)
-  set_source_files_properties(src/test/cpuid.c
-                              PROPERTIES COMPILE_FLAGS ${RR_TEST_FLAGS})
-  add_dependencies(cpuid Generated)
-  target_link_libraries(cpuid -lrt)
+#  add_executable(cpuid src/test/cpuid.c src/test/cpuid_loop.S)
+#  post_build_executable(cpuid)
+#  set_source_files_properties(src/test/cpuid.c
+#                              PROPERTIES COMPILE_FLAGS ${RR_TEST_FLAGS})
+#  add_dependencies(cpuid Generated)
+#  target_link_libraries(cpuid -lrt)
 
   # Check if we're running on KNL. If so, we allot more time to tests, due to
   # reduced single-core performance.

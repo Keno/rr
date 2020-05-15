@@ -136,6 +136,13 @@ _raw_syscall:
         .cfi_endproc
         .size _raw_syscall, . - _raw_syscall
 
+#elif defined(__aarch64__)
+        .text
+        .globl _raw_syscall
+        .hidden _raw_syscall
+        .type _raw_syscall, @function
+_raw_syscall:
+        trap
 #else
 #error unknown CPU architecture
 #endif /* __i386__/__x86_64__ */

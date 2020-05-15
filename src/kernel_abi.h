@@ -15,12 +15,14 @@ namespace rr {
 class remote_code_ptr;
 class Task;
 
-enum SupportedArch { x86, x86_64, SupportedArch_MAX = x86_64 };
+enum SupportedArch { x86, x86_64, aarch64, SupportedArch_MAX = aarch64 };
 
 #if defined(__i386__)
 const SupportedArch RR_NATIVE_ARCH = SupportedArch::x86;
 #elif defined(__x86_64__)
 const SupportedArch RR_NATIVE_ARCH = SupportedArch::x86_64;
+#elif defined(__aarch64__)
+const SupportedArch RR_NATIVE_ARCH = SupportedArch::aarch64;
 #else
 #error need to define new SupportedArch enum
 #endif
@@ -114,6 +116,7 @@ enum ELFENDIAN { DATA2LSB = 1 };
 enum EM {
   I386 = 3,
   X86_64 = 62,
+  AARCH64 = 183
 };
 
 struct WordSize32Defs {
@@ -1969,6 +1972,85 @@ struct X86Arch : public BaseArch<SupportedArch::x86, WordSize32Defs> {
   RR_VERIFY_TYPE_ARCH(SupportedArch::x86, struct ::stat64, struct stat64);
 };
 
+// Archs that inherit Linux's "generic" data structures
+template <SupportedArch arch_, typename wordsize>
+struct GenericArch : public BaseArch<arch_, wordsize> {
+  struct stat {
+    dev_t st_dev;
+    ino_t st_ino;
+    mode_t st_mode;
+    nlink_t st_nlink;
+    uid_t st_uid;
+    gid_t st_gid;
+    dev_t st_rdev;
+    unsigned long __pad1;
+    off_t st_size;
+    blksize_t st_blksize;
+    int __pad2;
+    blkcnt_t st_blocks;
+    struct timespec st_atim;
+    struct timespec st_mtim;
+    struct timespec st_ctim;
+    int __rr_unused[2];
+  };
+
+  struct stat64 {
+    dev_t st_dev;
+    ino_t st_ino;
+    mode_t st_mode;
+    nlink_t st_nlink;
+    uid_t st_uid;
+    gid_t st_gid;
+    dev_t st_rdev;
+    unsigned long __pad1;
+    off_t st_size;
+    blksize_t st_blksize;
+    int __pad2;
+    blkcnt_t st_blocks;
+    struct timespec st_atim;
+    struct timespec st_mtim;
+    struct timespec st_ctim;
+    int __rr_unused[2];
+  };
+};
+
+struct AA64Arch : public GenericArch<SupportedArch::aarch64, WordSize64Defs> {
+  typedef X64Arch Arch64;
+
+  static const size_t elfmachine = EM::AARCH64;
+  static const size_t elfendian = ELFENDIAN::DATA2LSB;
+
+  static const MmapCallingSemantics mmap_semantics = RegisterArguments;
+  static const CloneTLSType clone_tls_type = PthreadStructurePointer;
+  static const CloneParameterOrdering clone_parameter_ordering =
+      FlagsStackParentChildTLS;
+  static const SelectCallingSemantics select_semantics =
+      SelectRegisterArguments;
+
+  typedef uint32_t legacy_uid_t;
+  typedef uint32_t legacy_gid_t;
+
+#include "SyscallEnumsAA64.generated"
+
+  struct user {};
+
+  struct user_pt_regs {
+    __u64		regs[31];
+    __u64		sp;
+    __u64		pc;
+    __u64		pstate;
+  };
+  typedef struct user_pt_regs user_regs_struct;
+
+  struct user_fpsimd_state {
+    __uint128_t	vregs[32];
+    __u32		fpsr;
+    __u32		fpcr;
+    __u32		__reserved[2];
+  };
+  typedef struct user_fpsimd_state user_fpregs_struct;
+};
+
 #define RR_ARCH_FUNCTION(f, arch, args...)                                     \
   switch (arch) {                                                              \
     default:                                                                   \
@@ -1978,6 +2060,8 @@ struct X86Arch : public BaseArch<SupportedArch::x86, WordSize32Defs> {
       return f<rr::X86Arch>(args);                                             \
     case x86_64:                                                               \
       return f<rr::X64Arch>(args);                                             \
+    case aarch64:                                                              \
+      return f<rr::AA64Arch>(args);                                            \
   }
 
 #include "SyscallHelperFunctions.generated"
@@ -2027,6 +2111,8 @@ size_t sigaction_sigset_size(SupportedArch arch);
 typedef X86Arch NativeArch;
 #elif defined(__x86_64__)
 typedef X64Arch NativeArch;
+#elif defined(__aarch64__)
+typedef AA64Arch NativeArch;
 #else
 #error need to define new NativeArch
 #endif

@@ -95,6 +95,15 @@ template <> struct RegisterInfo<rr::X64Arch> {
   static Table registers;
 };
 
+template <> struct RegisterInfo<rr::AA64Arch> {
+  static bool ignore_undefined_register(GdbRegister) {
+    return false;
+  }
+  static const size_t num_registers = DREG_NUM_LINUX_AARCH64;
+  typedef RegisterTable<num_registers> Table;
+  static Table registers;
+};
+
 #define RV_ARCH(gdb_suffix, name, arch, extra_ctor_args)                       \
   RegisterInit(DREG_##gdb_suffix,                                              \
                RegisterValue(#name, offsetof(arch::user_regs_struct, name),    \
@@ -146,6 +155,8 @@ RegisterInfo<rr::X64Arch>::Table RegisterInfo<rr::X64Arch>::registers = {
 #undef RV_X64
 #undef RV_X86
 #undef RV_ARCH
+
+RegisterInfo<rr::AA64Arch>::Table RegisterInfo<rr::AA64Arch>::registers = {};
 
 // 32-bit format, 64-bit format for all of these.
 // format_index in RegisterPrinting depends on the ordering here.
@@ -502,7 +513,7 @@ void to_x86_narrow(int32_t& r32, uint64_t& r64) { r32 = r64; }
 void from_x86_narrow(int32_t& r32, uint64_t& r64) { r64 = (uint32_t)r32; }
 void from_x86_narrow_signed(int32_t& r32, uint64_t& r64) { r64 = (int64_t)r32; }
 
-void Registers::set_from_ptrace(const struct user_regs_struct& ptrace_regs) {
+void Registers::set_from_ptrace(const NativeArch::user_regs_struct& ptrace_regs) {
   if (arch() == NativeArch::arch()) {
     memcpy(&u, &ptrace_regs, sizeof(ptrace_regs));
     return;
@@ -512,7 +523,7 @@ void Registers::set_from_ptrace(const struct user_regs_struct& ptrace_regs) {
   convert_x86<to_x86_narrow, to_x86_narrow>(
       u.x86regs,
       *reinterpret_cast<X64Arch::user_regs_struct*>(
-          const_cast<struct user_regs_struct*>(&ptrace_regs)));
+          const_cast<NativeArch::user_regs_struct*>(&ptrace_regs)));
 }
 
 /**
@@ -521,9 +532,9 @@ void Registers::set_from_ptrace(const struct user_regs_struct& ptrace_regs) {
  * 64-bit rr. In that case the user_regs_struct is 64-bit and we copy
  * the 32-bit register values from u.x86regs into it.
  */
-struct user_regs_struct Registers::get_ptrace() const {
+NativeArch::user_regs_struct Registers::get_ptrace() const {
   union {
-    struct user_regs_struct linux_api;
+    NativeArch::user_regs_struct linux_api;
     struct X64Arch::user_regs_struct x64arch_api;
   } result;
   if (arch() == NativeArch::arch()) {
@@ -566,8 +577,8 @@ vector<uint8_t> Registers::get_ptrace_for_arch(SupportedArch arch) const {
 void Registers::set_from_ptrace_for_arch(SupportedArch a, const void* data,
                                          size_t size) {
   if (a == NativeArch::arch()) {
-    DEBUG_ASSERT(size == sizeof(struct user_regs_struct));
-    set_from_ptrace(*static_cast<const struct user_regs_struct*>(data));
+    DEBUG_ASSERT(size == sizeof(NativeArch::user_regs_struct));
+    set_from_ptrace(*static_cast<const NativeArch::user_regs_struct*>(data));
     return;
   }
 
