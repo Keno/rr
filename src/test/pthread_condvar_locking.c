@@ -1,6 +1,7 @@
 /* -*- Mode: C; tab-width: 8; c-basic-offset: 2; indent-tabs-mode: nil; -*- */
 
-#include "util.h"
+#include <pthread.h>
+#include <stdio.h>
 
 static pthread_cond_t condvar = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t mutex;
@@ -30,6 +31,6 @@ int main(void) {
   pthread_cond_wait(&condvar, &mutex);
   pthread_mutex_unlock(&mutex);
 
-  atomic_puts("EXIT-SUCCESS");
+  printf("EXIT-SUCCESS");
   return 0;
 }

@@ -2862,10 +2862,11 @@ static void prepare_clone(RecordTask* t, TaskSyscallState& syscall_state) {
     new_task->record_remote_even_if_null(child_params.ptid);
     new_task->record_remote_even_if_null(child_params.ctid);
   }
+
   t->session().trace_writer().write_task_event(TraceTaskEvent::for_clone(
       new_task->tid, t->tid, new_task->own_namespace_rec_tid, flags));
 
-  init_scratch_memory(new_task);
+  //init_scratch_memory(new_task);
 
   if ((t->emulated_ptrace_options & ptrace_option_for_event(ptrace_event)) &&
       !(flags & CLONE_UNTRACED)) {

@@ -1875,8 +1875,14 @@ void RecordTask::set_tid_addr(remote_ptr<int> tid_addr) {
 
 void RecordTask::update_own_namespace_tid() {
   AutoRemoteSyscalls remote(this);
-  own_namespace_rec_tid =
-      remote.infallible_syscall(syscall_number_for_gettid(arch()));
+  int result = remote.syscall(syscall_number_for_gettid(arch()));
+  if (result == -ESRCH) {
+    detected_unexpected_exit = true;
+  } else if (result <= 0) {
+    FATAL() << "Bad";
+  } else {
+    own_namespace_rec_tid = -1;
+  }
 }
 
 void RecordTask::tgkill(int sig) {

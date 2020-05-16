@@ -164,7 +164,13 @@ void Task::wait_exit() {
    */
   int ret = waitid(P_PID, tid, &info, WSTOPPED | WNOWAIT);
   if (ret == 0) {
-    DEBUG_ASSERT(info.si_pid == tid && WaitStatus(info).ptrace_event() == PTRACE_EVENT_EXEC);
+    DEBUG_ASSERT(info.si_pid == tid);
+    // It's possible that the original PTRACE_EVENT_EXIT was synthetic and now
+    // we just got the real one. In that case, cause an actual exit.
+    if (WaitStatus(info).ptrace_event() == PTRACE_EVENT_EXIT) {
+      return proceed_to_exit(true);
+    }
+    DEBUG_ASSERT(WaitStatus(info).ptrace_event() == PTRACE_EVENT_EXEC);
     // The kernel will do the reaping for us in this case
     was_reaped = true;
   } else {
@@ -764,6 +770,10 @@ void Task::enter_syscall() {
       need_seccomp_event = false;
       continue;
     }
+    if (ptrace_event()) {
+      ASSERT(this, ptrace_event() == PTRACE_EVENT_EXIT);
+      return;
+    }
     ASSERT(this, !ptrace_event());
     if (session().is_recording() && wait_status.group_stop()) {
       static_cast<RecordTask*>(this)->stash_group_stop();
@@ -1098,6 +1108,8 @@ TrapReasons Task::compute_trap_reasons() {
     }
     reasons.watchpoint =
         as->has_any_watchpoint_changes() || (DS_WATCHPOINT_ANY & status);
+  } else {
+    reasons.watchpoint = false;
   }
 
   // If we triggered a breakpoint, this would be the address of the breakpoint
@@ -1292,7 +1304,7 @@ void Task::resume_execution(ResumeRequest how, WaitRequest wait_how,
           << "waitpid(" << tid << ", NOHANG) failed with " << wait_ret;
     }
   }
-  if (wait_ret > 0) {
+  if (wait_ret > 0 || seen_ptrace_exit_event) {
     LOG(debug) << "Task " << tid << " exited unexpectedly";
     // wait() will see this and report the ptrace-exit event.
     detected_unexpected_exit = true;
@@ -1595,7 +1607,7 @@ void Task::wait(double interrupt_after_elapsed) {
   LOG(debug) << "going into blocking waitid(" << tid << ") ...";
   ASSERT(this, session().is_recording() || interrupt_after_elapsed == -1);
 
-  if (wait_unexpected_exit()) {
+  if (wait_unexpected_exit() || seen_ptrace_exit_event) {
     return;
   }
 

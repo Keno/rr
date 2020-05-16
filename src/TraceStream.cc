@@ -738,7 +738,9 @@ TraceTaskEvent TraceReader::read_task_event(FrameTime* time) {
       r.type_ = TraceTaskEvent::CLONE;
       auto clone = task.getClone();
       r.parent_tid_ = i32_to_tid(clone.getParentTid());
-      r.own_ns_tid_ = i32_to_tid(clone.getOwnNsTid());
+      // If the task died early, we may not have been able to record it,
+      // so don't use i32_to_tid, which would check that it's valid
+      r.own_ns_tid_ = (pid_t)clone.getOwnNsTid();
       r.clone_flags_ = clone.getFlags();
       LOG(debug) << "Reading event for " << task.getFrameTime()
                  << ": parent=" << r.parent_tid_ << " tid=" << r.tid_;
