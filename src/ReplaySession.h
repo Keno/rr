@@ -86,6 +86,8 @@ struct ReplayTraceStep {
       /* The syscall number we expect to
        * enter/exit. */
       int number;
+      /* The original arg1 */
+      int arg1;
     } syscall;
 
     struct {

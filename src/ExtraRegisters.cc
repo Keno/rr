@@ -254,6 +254,9 @@ void ExtraRegisters::print_register_file_compact(FILE* f) const {
       fputc(' ', f);
       print_regs(*this, DREG_64_XMM0, DREG_64_YMM0H, 16, "ymm", f);
       break;
+    case aarch64:
+      fprintf(f, "FP Registers follow (printing unimplemented)");
+      break;
     default:
       DEBUG_ASSERT(0 && "Unknown arch");
       break;
@@ -341,96 +344,106 @@ bool ExtraRegisters::set_to_raw_data(SupportedArch a, Format format,
   if (format == NONE) {
     return true;
   }
-  if (format != XSAVE) {
-    LOG(error) << "Unknown ExtraRegisters format: " << format;
-    return false;
-  }
-  format_ = XSAVE;
 
-  // Now we have to convert from the input XSAVE format to our
-  // native XSAVE format. Be careful to handle possibly-corrupt input data.
-
-  const XSaveLayout& native_layout = xsave_native_layout();
-  if (data_size != layout.full_size) {
-    LOG(error) << "Invalid XSAVE data length: " << data_size << ", expected "
-               << layout.full_size;
+  switch (format) {
+  default:
+    FATAL() << "Unknown ExtraRegisters format: " << format;
     return false;
+  case ARM_FPR: {
+    format_ = ARM_FPR;
+    data_.resize(sizeof(AA64Arch::user_fpregs_struct));
+    memcpy(data_.data(), data, data_.size());
+    break;
   }
-  data_.resize(native_layout.full_size);
-  DEBUG_ASSERT(data_.size() >= xsave_header_offset);
-  if (layout.full_size < xsave_header_offset) {
-    LOG(error) << "Invalid XSAVE layout size: " << layout.full_size;
-    return false;
-  }
-  memcpy(data_.data(), data, xsave_header_offset);
-  memset(data_.data() + xsave_header_offset, 0,
-         data_.size() - xsave_header_offset);
+  case XSAVE: {
+    format_ = XSAVE;
 
-  // Check for unsupported features being used
-  if (layout.full_size >= xsave_header_end) {
-    uint64_t features = features_used(data, layout);
-    if (features & ~native_layout.supported_feature_bits) {
-      LOG(error) << "Unsupported CPU features found: got " << HEX(features)
-                 << " (" << xsave_feature_string(features)
-                 << "), supported: "
-                 << HEX(native_layout.supported_feature_bits)
-                 << " ("
-                 << xsave_feature_string(native_layout.supported_feature_bits)
-                 << "); Consider using `rr cpufeatures` and "
-                 << "`rr record --disable-cpuid-features-(ext)`";
+    // Now we have to convert from the input XSAVE format to our
+    // native XSAVE format. Be careful to handle possibly-corrupt input data.
+
+    const XSaveLayout& native_layout = xsave_native_layout();
+    if (data_size != layout.full_size) {
+      LOG(error) << "Invalid XSAVE data length: " << data_size << ", expected "
+                << layout.full_size;
       return false;
     }
-  }
-
-  if (native_layout.full_size < xsave_header_end) {
-    // No XSAVE supported here, we're done!
-    return true;
-  }
-  if (layout.full_size < xsave_header_end) {
-    // Degenerate XSAVE format without an actual XSAVE header. Assume x87+XMM
-    // are in use.
-    uint64_t assume_features_used = 0x3;
-    memcpy(data_.data() + xsave_header_offset, &assume_features_used,
-           sizeof(assume_features_used));
-    return true;
-  }
-
-  uint64_t features = features_used(data, layout);
-  // OK, now both our native layout and the input layout are using the full
-  // XSAVE header. Copy the header. Make sure to use our updated `features`.
-  memcpy(data_.data() + xsave_header_offset, &features, sizeof(features));
-  memcpy(data_.data() + xsave_header_offset + sizeof(features),
-         data + xsave_header_offset + sizeof(features),
-         xsave_header_size - sizeof(features));
-
-  // Now copy each optional and present area into the right place in our struct
-  for (size_t i = 2; i < 64; ++i) {
-    if (features & (uint64_t(1) << i)) {
-      if (i >= layout.feature_layouts.size()) {
-        LOG(error) << "Invalid feature " << i << " beyond max layout "
-                   << layout.feature_layouts.size();
-        return false;
-      }
-      const XSaveFeatureLayout& feature = layout.feature_layouts[i];
-      if (uint64_t(feature.offset) + feature.size > layout.full_size) {
-        LOG(error) << "Invalid feature region: " << feature.offset << "+"
-                   << feature.size << " > " << layout.full_size;
-        return false;
-      }
-      const XSaveFeatureLayout& native_feature =
-          native_layout.feature_layouts[i];
-      if (feature.size != native_feature.size) {
-        LOG(error) << "Feature " << i << " has wrong size " << feature.size
-                   << ", expected " << native_feature.size;
-        return false;
-      }
-      // The CPU should guarantee these
-      DEBUG_ASSERT(native_feature.offset > 0);
-      DEBUG_ASSERT(native_feature.offset + native_feature.size <=
-                   native_layout.full_size);
-      memcpy(data_.data() + native_feature.offset, data + feature.offset,
-             feature.size);
+    data_.resize(native_layout.full_size);
+    DEBUG_ASSERT(data_.size() >= xsave_header_offset);
+    if (layout.full_size < xsave_header_offset) {
+      LOG(error) << "Invalid XSAVE layout size: " << layout.full_size;
+      return false;
     }
+    memcpy(data_.data(), data, xsave_header_offset);
+    memset(data_.data() + xsave_header_offset, 0,
+          data_.size() - xsave_header_offset);
+
+    // Check for unsupported features being used
+    if (layout.full_size >= xsave_header_end) {
+      uint64_t features = features_used(data, layout);
+      if (features & ~native_layout.supported_feature_bits) {
+        LOG(error) << "Unsupported CPU features found: got " << HEX(features)
+                  << " (" << xsave_feature_string(features)
+                  << "), supported: "
+                  << HEX(native_layout.supported_feature_bits)
+                  << " ("
+                  << xsave_feature_string(native_layout.supported_feature_bits)
+                  << "); Consider using `rr cpufeatures` and "
+                  << "`rr record --disable-cpuid-features-(ext)`";
+        return false;
+      }
+    }
+
+    if (native_layout.full_size < xsave_header_end) {
+      // No XSAVE supported here, we're done!
+      return true;
+    }
+    if (layout.full_size < xsave_header_end) {
+      // Degenerate XSAVE format without an actual XSAVE header. Assume x87+XMM
+      // are in use.
+      uint64_t assume_features_used = 0x3;
+      memcpy(data_.data() + xsave_header_offset, &assume_features_used,
+            sizeof(assume_features_used));
+      return true;
+    }
+
+    uint64_t features = features_used(data, layout);
+    // OK, now both our native layout and the input layout are using the full
+    // XSAVE header. Copy the header. Make sure to use our updated `features`.
+    memcpy(data_.data() + xsave_header_offset, &features, sizeof(features));
+    memcpy(data_.data() + xsave_header_offset + sizeof(features),
+          data + xsave_header_offset + sizeof(features),
+          xsave_header_size - sizeof(features));
+
+    // Now copy each optional and present area into the right place in our struct
+    for (size_t i = 2; i < 64; ++i) {
+      if (features & (uint64_t(1) << i)) {
+        if (i >= layout.feature_layouts.size()) {
+          LOG(error) << "Invalid feature " << i << " beyond max layout "
+                    << layout.feature_layouts.size();
+          return false;
+        }
+        const XSaveFeatureLayout& feature = layout.feature_layouts[i];
+        if (uint64_t(feature.offset) + feature.size > layout.full_size) {
+          LOG(error) << "Invalid feature region: " << feature.offset << "+"
+                    << feature.size << " > " << layout.full_size;
+          return false;
+        }
+        const XSaveFeatureLayout& native_feature =
+            native_layout.feature_layouts[i];
+        if (feature.size != native_feature.size) {
+          LOG(error) << "Feature " << i << " has wrong size " << feature.size
+                    << ", expected " << native_feature.size;
+          return false;
+        }
+        // The CPU should guarantee these
+        DEBUG_ASSERT(native_feature.offset > 0);
+        DEBUG_ASSERT(native_feature.offset + native_feature.size <=
+                    native_layout.full_size);
+        memcpy(data_.data() + native_feature.offset, data + feature.offset,
+              feature.size);
+      }
+    }
+  }
   }
 
   return true;

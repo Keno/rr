@@ -138,7 +138,7 @@ static const PmuConfig pmu_configs[] = {
   { AMDF15R30, "AMD Family 15h Revision 30h", 0xc4, 0xc6, 0, 250,
     PMU_TICKS_TAKEN_BRANCHES | PMU_SKIP_INTEL_BUG_CHECK },
   { AMDRyzen, "AMD Ryzen", 0x5100d1, 0, 0, 1000, PMU_TICKS_RCB },
-  { AWSGraviton2, "AWS Graviton 2", 0x13, 0x08, 0x09, 1000, PMU_TICKS_RCB }
+  { AWSGraviton2, "AWS Graviton 2", 0x21, 0, 0, 1000, PMU_TICKS_RCB }
 };
 
 #define RR_SKID_MAX 1000

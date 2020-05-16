@@ -564,7 +564,10 @@ Completion ReplaySession::enter_syscall(ReplayTask* t,
         r.set_ip(
             syscall_instruction.increment_by_syscall_insn_length(t->arch()));
         r.set_original_syscallno(r.syscallno());
-        r.set_syscall_result(-ENOSYS);
+        r.set_orig_arg1(r.arg1());
+        if (t->arch() == x86 || t->arch() == x86_64) {
+          r.set_syscall_result(-ENOSYS);
+        }
         t->set_regs(r);
         t->canonicalize_regs(current_trace_frame().event().Syscall().arch());
         t->validate_regs();
@@ -593,8 +596,10 @@ Completion ReplaySession::enter_syscall(ReplayTask* t,
  * Return COMPLETE if successful, or INCOMPLETE if an unhandled trap occurred.
  */
 Completion ReplaySession::exit_syscall(ReplayTask* t) {
+  Registers exit_reg = current_trace_frame().regs();
+  exit_reg.set_orig_arg1(t->regs().orig_arg1());
   t->on_syscall_exit(current_step.syscall.number, current_step.syscall.arch,
-                     current_trace_frame().regs());
+                     exit_reg);
 
   t->apply_all_data_records_from_trace();
   t->set_return_value_from_trace();

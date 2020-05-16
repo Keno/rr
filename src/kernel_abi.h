@@ -2091,6 +2091,12 @@ std::vector<uint8_t> syscall_instruction(SupportedArch arch);
 ssize_t syscall_instruction_length(SupportedArch arch);
 
 /**
+ * Return the length of all invoke-syscall instructions. Currently,
+ * they must all have the same length!
+ */
+ssize_t bkpt_instruction_length(SupportedArch arch);
+
+/**
  * Return the length of the vsyscall invocation pattern. Currently,
  * we only support patterns of the form movq %addr, %rax; callq *%rax.
  */

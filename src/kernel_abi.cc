@@ -211,6 +211,18 @@ ssize_t vsyscall_entry_length(SupportedArch arch) {
   }
 }
 
+ssize_t bkpt_instruction_length(SupportedArch arch) {
+   switch (arch) {
+    case x86:
+      return 1;
+    case aarch64:
+      return aarch64_instrucution_length();
+    default:
+      DEBUG_ASSERT(0 && "Need to define bkpt instruction length");
+      return 0;
+  }
+}
+
 template <typename Arch>
 static void assign_sigval(typename Arch::sigval_t& to,
                           const NativeArch::sigval_t& from) {

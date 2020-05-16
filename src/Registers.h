@@ -416,6 +416,10 @@ public:
     return u.aa64regs.pstate;
   }
 
+  void set_x7(uintptr_t x7) {
+    u.aa64regs.x[7] = x7;
+  }
+
   // End of AARCH64-specific stuff
 
   void print_register_file(FILE* f) const;

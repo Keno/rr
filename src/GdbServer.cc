@@ -632,8 +632,8 @@ void GdbServer::dispatch_debugger_request(Session& session,
       return;
     }
     case DREQ_SET_SW_BREAK: {
-      ASSERT(target, req.watch().kind == sizeof(AddressSpace::breakpoint_insn))
-          << "Debugger setting bad breakpoint insn";
+      //ASSERT(target, req.watch().kind == sizeof(bkpt_instruction_length(target->arch())))
+      //    << "Debugger setting bad breakpoint insn";
       // Mirror all breakpoint/watchpoint sets/unsets to the target process
       // if it's not part of the timeline (i.e. it's a diversion).
       ReplayTask* replay_task =

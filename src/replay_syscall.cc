@@ -265,7 +265,7 @@ template <typename Arch> static void prepare_clone(ReplayTask* t) {
   // Fix registers in new task
   Registers new_r = new_task->regs();
   new_r.set_original_syscallno(trace_frame.regs().original_syscallno());
-  new_r.set_arg1(trace_frame.regs().arg1());
+  new_r.restore_arg1(trace_frame.regs().arg1());
   new_r.set_arg2(trace_frame.regs().arg2());
   new_task->set_regs(new_r);
   new_task->canonicalize_regs(new_task->arch());
@@ -1019,7 +1019,8 @@ static void handle_opened_files(ReplayTask* t, int flags) {
 template <typename Arch>
 static void rep_process_syscall_arch(ReplayTask* t, ReplayTraceStep* step,
                                      const Registers& trace_regs) {
-  int sys = t->current_trace_frame().event().Syscall().number;
+  auto &sys_ev = t->current_trace_frame().event().Syscall();
+  int sys = sys_ev.number;
   const TraceFrame& trace_frame = t->session().current_trace_frame();
 
   LOG(debug) << "processing " << syscall_name(sys, Arch::arch()) << " (exit)";
@@ -1047,6 +1048,7 @@ static void rep_process_syscall_arch(ReplayTask* t, ReplayTraceStep* step,
   }
 
   step->syscall.number = sys;
+  step->syscall.arg1 = sys_ev.regs.arg1();
   step->action = TSTEP_EXIT_SYSCALL;
 
   if (trace_regs.original_syscallno() ==

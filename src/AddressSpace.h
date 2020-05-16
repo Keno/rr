@@ -637,7 +637,7 @@ public:
   bool has_watchpoints() { return !watchpoints.empty(); }
 
   // Encoding of the |int $3| instruction.
-  static const uint8_t breakpoint_insn = 0xCC;
+  static const uint8_t x86_breakpoint_insn = 0xCC;
 
   ScopedFd& mem_fd() { return child_mem_fd; }
   void set_mem_fd(ScopedFd&& fd) { child_mem_fd = std::move(fd); }
@@ -940,18 +940,15 @@ private:
       return user_count > 0 ? BKPT_USER : BKPT_INTERNAL;
     }
 
-    size_t data_length() { return 1; }
-    uint8_t* original_data() { return &overwritten_data; }
+    size_t data_length(SupportedArch arch) { return bkpt_instruction_length(arch); }
+    uint8_t* original_data() { return overwritten_data; }
 
     // "Refcounts" of breakpoints set at |addr|.  The breakpoint
     // object must be unique since we have to save the overwritten
     // data, and we can't enforce the order in which breakpoints
     // are set/removed.
     int internal_count, user_count;
-    uint8_t overwritten_data;
-    static_assert(sizeof(overwritten_data) ==
-                      sizeof(AddressSpace::breakpoint_insn),
-                  "Must have the same size.");
+    uint8_t overwritten_data[4];
 
     int* counter(BreakpointType which) {
       DEBUG_ASSERT(BKPT_INTERNAL == which || BKPT_USER == which);
