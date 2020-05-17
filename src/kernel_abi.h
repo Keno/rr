@@ -2023,7 +2023,7 @@ struct AA64Arch : public GenericArch<SupportedArch::aarch64, WordSize64Defs> {
   static const MmapCallingSemantics mmap_semantics = RegisterArguments;
   static const CloneTLSType clone_tls_type = PthreadStructurePointer;
   static const CloneParameterOrdering clone_parameter_ordering =
-      FlagsStackParentChildTLS;
+      FlagsStackParentTLSChild;
   static const SelectCallingSemantics select_semantics =
       SelectRegisterArguments;
 

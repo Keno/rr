@@ -926,6 +926,26 @@ void patch_after_exec_arch<X64Arch>(RecordTask* t, Monkeypatcher& patcher) {
 
 template <>
 void patch_after_exec_arch<AA64Arch>(RecordTask*, Monkeypatcher&) {
+/*
+  setup_preload_library_path<X64Arch>(t);
+  setup_audit_library_path<X64Arch>(t);
+
+  auto vdso_start = t->vm()->vdso().start();
+  size_t vdso_size = t->vm()->vdso().size();
+
+  VdsoReader reader(t);
+  auto syms = reader.read_symbols(".dynsym", ".dynstr");
+
+  static const named_syscall syscalls_to_monkeypatch[] = {
+#define S(n) { "__kernel_" #n, X64Arch::n }
+    S(gettimeofday), S(rt_sigreturn), S(clock_gettime), S(getres),
+#undef S
+  };
+
+  for (auto& syscall : syscalls_to_monkeypatch) {
+
+  }
+*/
 }
 
 template <>
