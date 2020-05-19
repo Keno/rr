@@ -790,7 +790,7 @@ set(BASIC_TESTS
   fanotify
   fatal_sigsegv_thread
   fcntl_dupfd
-  fault_in_code_page
+#  fault_in_code_page
   fcntl_misc
   fcntl_owner_ex
   fcntl_rw_hints
@@ -1124,7 +1124,7 @@ set(TESTS_WITH_PROGRAM
   block_intr_sigchld
 #  blocked_bad_ip
 #  blocked_sigill
-  blocked_sigsegv
+#  blocked_sigsegv
   breakpoint
   breakpoint_conditions
   breakpoint_overlap
@@ -1159,7 +1159,7 @@ set(TESTS_WITH_PROGRAM
   exit_group
   exit_race
   exit_status
-  explicit_checkpoints
+  #explicit_checkpoints
   fork_stress
   fork_syscalls
   function_calls
@@ -1255,7 +1255,7 @@ set(TESTS_WITH_PROGRAM
   wait_for_all
   watchpoint
   watchpoint_at_sched
-  watchpoint_before_signal
+#  watchpoint_before_signal
 #  watchpoint_no_progress
   watchpoint_size_change
   watchpoint_syscall

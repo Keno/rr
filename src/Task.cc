@@ -1309,6 +1309,7 @@ void Task::set_regs(const Registers& regs) {
 void Task::flush_regs() {
   if (registers_dirty) {
     LOG(debug) << "Flushing registers for tid " << tid << " " << registers;
+#if defined(__i386__) || defined(__x86_64)
     auto ptrace_regs = registers.get_ptrace();
     if (ptrace_if_alive(PTRACE_SETREGS, nullptr, &ptrace_regs)) {
       /* It's ok for flush regs to fail, e.g. if the task got killed underneath
@@ -1316,6 +1317,7 @@ void Task::flush_regs() {
        * from ptrace otherwise */
       registers_dirty = false;
     }
+#endif
   }
 }
 
@@ -1775,9 +1777,10 @@ void Task::did_waitpid(WaitStatus status) {
     if (!is_stopped && !registers_dirty) {
       LOG(debug) << "Requesting registers from tracee " << tid;
       NativeArch::user_regs_struct ptrace_regs;
+
+#if defined(__i386__) || defined(__x86_64__)
       if (ptrace_if_alive(PTRACE_GETREGS, nullptr, &ptrace_regs)) {
         registers.set_from_ptrace(ptrace_regs);
-  #if defined(__i386__) || defined(__x86_64__)
         // Check the architecture of the task by looking at the
         // cs segment register and checking if that segment is a long mode segment
         // (Linux always uses GDT entries for this, which are globally the same).
@@ -1786,10 +1789,17 @@ void Task::did_waitpid(WaitStatus status) {
           registers.set_arch(a);
           registers.set_from_ptrace(ptrace_regs);
         }
-  #else
-  #error detect architecture here
-  #endif
-      } else {
+      }
+#elif defined(__aarch64__)
+      struct iovec vec = { &ptrace_regs,
+                          sizeof(ptrace_regs) };
+      if (ptrace_if_alive(PTRACE_GETREGSET, NT_PRSTATUS, &vec)) {
+        registers.set_from_ptrace(ptrace_regs);
+      }
+#else
+#error detect architecture here
+#endif
+      else {
         LOG(debug) << "Unexpected process death for " << tid;
         status = WaitStatus::for_ptrace_event(PTRACE_EVENT_EXIT);
       }
