@@ -16,10 +16,8 @@ extern "C" {
 #include "proc_service.h"
 }
 
-#include <asm/prctl.h>
 #include <dlfcn.h>
 #include <linux/elf.h>
-#include <sys/reg.h>
 
 #define LIBRARY_NAME "libthread_db.so.1"
 
@@ -67,7 +65,7 @@ ps_err_e ps_lgetregs(struct ps_prochandle* h, lwpid_t rec_tid,
   rr::Task* task = h->thread_group->session()->find_task(rec_tid);
   DEBUG_ASSERT(task != nullptr);
 
-  struct NativeArch::user_regs_struct regs = task->regs().get_ptrace();
+  NativeArch::user_regs_struct regs = task->regs().get_ptrace();
   memcpy(result, static_cast<void*>(&regs), sizeof(regs));
   LOG(debug) << "ps_lgetregs OK";
   return PS_OK;

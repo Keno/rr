@@ -2,7 +2,6 @@
 
 #include "replay_syscall.h"
 
-#include <asm/prctl.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/futex.h>

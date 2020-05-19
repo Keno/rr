@@ -3,7 +3,6 @@
 #include "record_syscall.h"
 
 #include <arpa/inet.h>
-#include <asm/prctl.h>
 #include <dirent.h>
 #include <elf.h>
 #include <errno.h>

@@ -2,7 +2,6 @@
 
 #include "Task.h"
 
-#include <asm/prctl.h>
 #include <asm/ptrace.h>
 #include <elf.h>
 #include <errno.h>
