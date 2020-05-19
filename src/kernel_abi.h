@@ -334,6 +334,21 @@ struct BaseArch : public wordsize,
   typedef uint64_t __u64;
   typedef __u64 aligned_u64 __attribute((aligned(8)));
 
+  // These are the same across all architectures. The kernel defines them for
+  // all architectures in the uapi headers, but the libc's headers may not.
+  // Further, the libc headers may conflict with the kernel headers, so for
+  // simplicitly, we just define everything here:
+  static const int PTRACE_TRACEME	= 0;
+  static const int PTRACE_PEEKTEXT = 1;
+  static const int PTRACE_PEEKDATA = 2;
+  static const int PTRACE_PEEKUSR	= 3;
+  static const int PTRACE_POKETEXT = 4;
+  static const int PTRACE_POKEDATA = 5;
+  static const int PTRACE_POKEUSR	= 6;
+  static const int PTRACE_CONT = 7;
+  static const int PTRACE_KILL = 8;
+  static const int PTRACE_SINGLESTEP = 9;
+
   template <typename T> struct ptr {
     typedef T Referent;
     unsigned_word val;
@@ -1658,6 +1673,25 @@ struct X64Arch : public BaseArch<SupportedArch::x86_64, WordSize64Defs> {
 
 #include "SyscallEnumsX64.generated"
 
+  static const int PTRACE_GETREGS = 12;
+  static const int PTRACE_SETREGS = 13;
+  static const int PTRACE_GETFPREGS = 14;
+  static const int PTRACE_SETFPREGS = 15;
+  static const int PTRACE_GETFPXREGS = 18;
+  static const int PTRACE_SETFPXREGS = 19;
+  static const int PTRACE_OLDSETOPTIONS = 21;
+
+  // x86_64 arch_prctl commands
+  static const int ARCH_SET_GS = 0x1001;
+  static const int ARCH_SET_FS = 0x1002;
+  static const int ARCH_GET_FS = 0x1003;
+  static const int ARCH_GET_GS = 0x1004;
+  static const int ARCH_GET_CPUID = 0x1011;
+  static const int ARCH_SET_CPUID = 0x1012;
+  static const int ARCH_MAP_VDSO_X32 = 0x2001;
+  static const int ARCH_MAP_VDSO_32 = 0x2002;
+  static const int ARCH_MAP_VDSO_64 = 0x2003;
+
   struct user_regs_struct {
     uint64_t r15;
     uint64_t r14;
@@ -1814,6 +1848,15 @@ struct X86Arch : public BaseArch<SupportedArch::x86, WordSize32Defs> {
   typedef uint16_t legacy_gid_t;
 
 #include "SyscallEnumsX86.generated"
+
+  // The same as x86
+  static const int PTRACE_GETREGS = Arch64::PTRACE_GETREGS;
+  static const int PTRACE_SETREGS = Arch64::PTRACE_SETREGS;
+  static const int PTRACE_GETFPREGS = Arch64::PTRACE_GETFPREGS;
+  static const int PTRACE_SETFPREGS = Arch64::PTRACE_SETFPREGS;
+  static const int PTRACE_GETFPXREGS = Arch64::PTRACE_GETFPXREGS;
+  static const int PTRACE_SETFPXREGS = Arch64::PTRACE_SETFPXREGS;
+  static const int PTRACE_OLDSETOPTIONS = Arch64::PTRACE_OLDSETOPTIONS;
 
   struct user_regs_struct {
     int32_t ebx;

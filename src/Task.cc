@@ -109,7 +109,7 @@ void Task::detach() {
 void Task::reenable_cpuid_tsc() {
   AutoRemoteSyscalls remote(this);
   remote.infallible_syscall(syscall_number_for_arch_prctl(arch()),
-                        ARCH_SET_CPUID, 1);
+                        X64Arch::ARCH_SET_CPUID, 1);
   remote.infallible_syscall(syscall_number_for_prctl(arch()),
                         PR_SET_TSC, PR_TSC_ENABLE);
 }
@@ -465,7 +465,7 @@ template <typename Arch>
 static void ptrace_syscall_exit_legacy_arch(Task* t, Task* tracee, const Registers& regs)
 {
   switch ((int)regs.orig_arg1_signed()) {
-    case PTRACE_SETREGS: {
+    case Arch::PTRACE_SETREGS: {
       auto data = t->read_mem(
           remote_ptr<typename Arch::user_regs_struct>(regs.arg4()));
       Registers r = tracee->regs();
@@ -473,7 +473,7 @@ static void ptrace_syscall_exit_legacy_arch(Task* t, Task* tracee, const Registe
       tracee->set_regs(r);
       break;
     }
-    case PTRACE_SETFPREGS: {
+    case Arch::PTRACE_SETFPREGS: {
       auto data = t->read_mem(
           remote_ptr<typename Arch::user_fpregs_struct>(regs.arg4()));
       auto r = tracee->extra_regs();
@@ -481,7 +481,7 @@ static void ptrace_syscall_exit_legacy_arch(Task* t, Task* tracee, const Registe
       tracee->set_extra_regs(r);
       break;
     }
-    case PTRACE_SETFPXREGS: {
+    case Arch::PTRACE_SETFPXREGS: {
       auto data =
           t->read_mem(remote_ptr<X86Arch::user_fpxregs_struct>(regs.arg4()));
       auto r = tracee->extra_regs();
@@ -489,7 +489,7 @@ static void ptrace_syscall_exit_legacy_arch(Task* t, Task* tracee, const Registe
       tracee->set_extra_regs(r);
       break;
     }
-    case PTRACE_POKEUSER: {
+    case Arch::PTRACE_POKEUSR: {
       size_t addr = regs.arg3();
       typename Arch::unsigned_word data = regs.arg4();
       if (addr < sizeof(typename Arch::user_regs_struct)) {
@@ -722,11 +722,14 @@ void Task::on_syscall_exit_arch(int syscallno, const Registers& regs) {
         case PTRACE_ARCH_PRCTL: {
           int code = (int)regs.arg4();
           switch (code) {
-            case ARCH_GET_FS:
-            case ARCH_GET_GS:
+            case X64Arch::ARCH_GET_FS:
+            case X64Arch::ARCH_GET_GS:
               break;
-            case ARCH_SET_FS:
-            case ARCH_SET_GS: {
+            case X64Arch::ARCH_SET_FS:
+            case X64Arch::ARCH_SET_GS: {
+              if (tracee->arch() != x86_64) {
+                break;
+              }
               Registers r = tracee->regs();
               if (regs.arg3() == 0) {
                 // Work around a kernel bug in pre-4.7 kernels, where setting
@@ -734,7 +737,7 @@ void Task::on_syscall_exit_arch(int syscallno, const Registers& regs) {
                 tracee->ptrace_if_alive(PTRACE_ARCH_PRCTL, regs.arg3(),
                                         (void*)(uintptr_t)regs.arg4());
               }
-              if (code == ARCH_SET_FS) {
+              if (code == X64Arch::ARCH_SET_FS) {
                 r.set_fs_base(regs.arg3());
               } else {
                 r.set_gs_base(regs.arg3());
@@ -747,10 +750,12 @@ void Task::on_syscall_exit_arch(int syscallno, const Registers& regs) {
           }
           break;
         }
-        case PTRACE_SETREGS:
-        case PTRACE_SETFPREGS:
-        case PTRACE_SETFPXREGS:
-        case PTRACE_POKEUSER: {
+        // Also X64Arch. For other architectures, the inner call will ignore
+        // these.
+        case X86Arch::PTRACE_SETREGS:
+        case X86Arch::PTRACE_SETFPREGS:
+        case X86Arch::PTRACE_SETFPXREGS:
+        case X86Arch::PTRACE_POKEUSR: {
           ptrace_syscall_exit_legacy_arch<Arch>(this, tracee, regs);
         }
       }
@@ -944,7 +949,7 @@ void Task::post_exec_syscall() {
   if (session().has_cpuid_faulting()) {
     AutoRemoteSyscalls remote(this);
     remote.infallible_syscall(syscall_number_for_arch_prctl(arch()),
-                              ARCH_SET_CPUID, 0);
+                              X64Arch::ARCH_SET_CPUID, 0);
   }
 }
 

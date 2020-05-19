@@ -2129,7 +2129,7 @@ static void prepare_ptrace_legacy(RecordTask* t,
       }
       break;
     }
-    case PTRACE_PEEKUSER: {
+    case Arch::PTRACE_PEEKUSR: {
       RecordTask* tracee = verify_ptrace_target(t, syscall_state, pid);
       if (tracee) {
         // The actual syscall returns the data via the 'data' out-parameter.
@@ -2175,7 +2175,7 @@ static void prepare_ptrace_legacy(RecordTask* t,
       }
       break;
     }
-    case PTRACE_POKEUSER: {
+    case Arch::PTRACE_POKEUSR: {
       RecordTask* tracee = verify_ptrace_target(t, syscall_state, pid);
       if (tracee) {
         // The actual syscall returns the data via the 'data' out-parameter.
@@ -2191,7 +2191,7 @@ static void prepare_ptrace_legacy(RecordTask* t,
       }
       break;
     }
-    case PTRACE_GETREGS: {
+    case Arch::PTRACE_GETREGS: {
       RecordTask* tracee = verify_ptrace_target(t, syscall_state, pid);
       if (tracee) {
         auto data =
@@ -2203,7 +2203,7 @@ static void prepare_ptrace_legacy(RecordTask* t,
       }
       break;
     }
-    case PTRACE_GETFPREGS: {
+    case Arch::PTRACE_GETFPREGS: {
       RecordTask* tracee = verify_ptrace_target(t, syscall_state, pid);
       if (tracee) {
         auto data =
@@ -2215,7 +2215,7 @@ static void prepare_ptrace_legacy(RecordTask* t,
       }
       break;
     }
-    case PTRACE_GETFPXREGS: {
+    case Arch::PTRACE_GETFPXREGS: {
       if (Arch::arch() != x86) {
         // GETFPXREGS is x86-32 only
         syscall_state.expect_errno = EIO;
@@ -2231,7 +2231,7 @@ static void prepare_ptrace_legacy(RecordTask* t,
       }
       break;
     }
-    case PTRACE_SETREGS: {
+    case Arch::PTRACE_SETREGS: {
       RecordTask* tracee = verify_ptrace_target(t, syscall_state, pid);
       if (tracee) {
         // The actual register effects are performed by
@@ -2240,7 +2240,7 @@ static void prepare_ptrace_legacy(RecordTask* t,
       }
       break;
     }
-    case PTRACE_SETFPREGS: {
+    case Arch::PTRACE_SETFPREGS: {
       RecordTask* tracee = verify_ptrace_target(t, syscall_state, pid);
       if (tracee) {
         // The actual register effects are performed by
@@ -2249,7 +2249,7 @@ static void prepare_ptrace_legacy(RecordTask* t,
       }
       break;
     }
-    case PTRACE_SETFPXREGS: {
+    case Arch::PTRACE_SETFPXREGS: {
       if (Arch::arch() != x86) {
         // SETFPXREGS is x86-32 only
         syscall_state.expect_errno = EIO;
@@ -2549,12 +2549,12 @@ static Switchable prepare_ptrace(RecordTask* t,
         }
         int code = (int)t->regs().arg4();
         switch (code) {
-          case ARCH_GET_FS:
-          case ARCH_GET_GS: {
+          case X64Arch::ARCH_GET_FS:
+          case X64Arch::ARCH_GET_GS: {
             bool ok = true;
             remote_ptr<uint64_t> addr(t->regs().arg3());
-            uint64_t data = code == ARCH_GET_FS ? tracee->regs().fs_base()
-                                                : tracee->regs().gs_base();
+            uint64_t data = code == X64Arch::ARCH_GET_FS ?
+              tracee->regs().fs_base() : tracee->regs().gs_base();
             t->write_mem(addr, data, &ok);
             if (ok) {
               t->record_local(addr, &data);
@@ -2564,8 +2564,8 @@ static Switchable prepare_ptrace(RecordTask* t,
             }
             break;
           }
-          case ARCH_SET_FS:
-          case ARCH_SET_GS:
+          case X64Arch::ARCH_SET_FS:
+          case X64Arch::ARCH_SET_GS:
             syscall_state.emulate_result(0);
             break;
           default:
@@ -2581,12 +2581,14 @@ static Switchable prepare_ptrace(RecordTask* t,
     case PTRACE_POKEDATA:
     case PTRACE_PEEKUSER:
     case PTRACE_POKEUSER:
-    case PTRACE_GETREGS:
-    case PTRACE_GETFPREGS:
-    case PTRACE_GETFPXREGS:
-    case PTRACE_SETREGS:
-    case PTRACE_SETFPREGS:
-    case PTRACE_SETFPXREGS:
+    // Also X64Arch. If the architecture doesn't have this command,
+    // it will be ignored by prepare_ptrace_legacy.
+    case X86Arch::PTRACE_GETREGS:
+    case X86Arch::PTRACE_GETFPREGS:
+    case X86Arch::PTRACE_GETFPXREGS:
+    case X86Arch::PTRACE_SETREGS:
+    case X86Arch::PTRACE_SETFPREGS:
+    case X86Arch::PTRACE_SETFPXREGS:
       prepare_ptrace_legacy<Arch>(t, syscall_state);
       break;
     default:
@@ -3980,16 +3982,21 @@ static Switchable rec_prepare_syscall_arch(RecordTask* t,
 
     case Arch::arch_prctl:
       switch ((int)regs.arg1_signed()) {
-        case ARCH_SET_FS:
-        case ARCH_SET_GS:
+        case X64Arch::ARCH_SET_FS:
+        case X64Arch::ARCH_SET_GS:
           break;
 
-        case ARCH_GET_FS:
-        case ARCH_GET_GS:
+        case X64Arch::ARCH_GET_FS:
+        case X64Arch::ARCH_GET_GS:
           syscall_state.reg_parameter<typename Arch::unsigned_long>(2);
           break;
 
-        case ARCH_SET_CPUID: {
+        case X64Arch::ARCH_SET_CPUID: {
+          if (t->arch() != x86_64 && t->arch() != x86) {
+            syscall_state.expect_errno = EINVAL;
+            break;
+          }
+
           if (!t->session().has_cpuid_faulting()) {
             // Not supported or not working. Allow the call to go
             // through to get the right result.
@@ -4006,7 +4013,12 @@ static Switchable rec_prepare_syscall_arch(RecordTask* t,
           break;
         }
 
-        case ARCH_GET_CPUID: {
+        case X64Arch::ARCH_GET_CPUID: {
+          if (t->arch() != x86_64 && t->arch() != x86) {
+            syscall_state.expect_errno = EINVAL;
+            break;
+          }
+
           if (!t->session().has_cpuid_faulting()) {
             // Not supported or not working. Allow the call to go
             // through to get the right result.

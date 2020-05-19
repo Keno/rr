@@ -1127,7 +1127,8 @@ static void rep_process_syscall_arch(ReplayTask* t, ReplayTraceStep* step,
     case Arch::arch_prctl: {
       auto arg1 = t->regs().arg1();
       if (sys == Arch::arch_prctl &&
-          (arg1 == ARCH_GET_CPUID || arg1 == ARCH_SET_CPUID)) {
+          (t->arch() == x86 || t->arch() == x86_64) &&
+          (arg1 == X64Arch::ARCH_GET_CPUID || arg1 == X64Arch::ARCH_SET_CPUID)) {
         return;
       }
     }
