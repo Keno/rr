@@ -1817,23 +1817,25 @@ bool AddressSpace::has_exec_watchpoint_fired(remote_code_ptr addr) {
 }
 
 bool AddressSpace::allocate_watchpoints() {
-  Task::DebugRegs regs = get_watch_configs(SETTING_TASK_STATE);
+  if (arch() == x86 || arch() == x86_64) {
+    Task::DebugRegs regs = get_watch_configs(SETTING_TASK_STATE);
 
-  if (regs.size() <= 0x7f) {
-    bool ok = true;
-    for (auto t : task_set()) {
-      if (!t->set_debug_regs(regs)) {
-        ok = false;
+    if (regs.size() <= 0x7f) {
+      bool ok = true;
+      for (auto t : task_set()) {
+        if (!t->set_debug_regs(regs)) {
+          ok = false;
+        }
+      }
+      if (ok) {
+        return true;
       }
     }
-    if (ok) {
-      return true;
-    }
-  }
 
-  regs.clear();
-  for (auto t2 : task_set()) {
-    t2->set_debug_regs(regs);
+    regs.clear();
+    for (auto t2 : task_set()) {
+      t2->set_debug_regs(regs);
+    }
   }
   for (auto kv : watchpoints) {
     kv.second.debug_regs_for_exec_read.clear();
