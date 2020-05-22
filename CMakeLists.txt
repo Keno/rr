@@ -792,7 +792,7 @@ set(BASIC_TESTS
   epoll_create
   epoll_create1
   eventfd
-  exec_flags
+  # exec_flags
   exec_no_env
   exec_self
   exec_from_main_thread
@@ -823,7 +823,7 @@ set(BASIC_TESTS
   futex_pi
   futex_priorities
   x86/fxregs
-  gdb_bogus_breakpoint
+  #gdb_bogus_breakpoint
   gcrypt_rdrand
   getcpu
   getgroups
@@ -868,7 +868,7 @@ set(BASIC_TESTS
   madvise_free
   madvise_wipeonfork
   map_fixed
-  map_shared_syscall
+  #map_shared_syscall
   membarrier
   memfd_create
   memfd_create_shared
@@ -943,30 +943,30 @@ set(BASIC_TESTS
   protect_rr_fds
   prw
   pthread_condvar_locking
-  ptrace
-  ptrace_attach_null_status
-  ptrace_attach_running
-  ptrace_attach_sleeping
-  ptrace_attach_stopped
-  ptrace_attach_thread_running
-  ptrace_breakpoint
-  ptrace_change_patched_syscall
-  ptrace_debug_regs
-  ptrace_exec
-  ptrace_exec32
-  ptrace_kill_grandtracee
-  ptrace_tls
-  ptrace_seize
-  ptrace_sigchld_blocked
-  ptrace_signals
-  ptrace_singlestep
-  ptrace_syscall
-  ptrace_syscall_clone_untraced
-  ptrace_sysemu
-  ptrace_sysemu_syscall
-  ptrace_trace_clone
-  ptrace_trace_exit
-  ptrace_traceme
+  # ptrace
+  # ptrace_attach_null_status
+  # ptrace_attach_running
+  # ptrace_attach_sleeping
+  # ptrace_attach_stopped
+  # ptrace_attach_thread_running
+  # ptrace_breakpoint
+  # ptrace_change_patched_syscall
+  # ptrace_debug_regs
+  # ptrace_exec
+  # ptrace_exec32
+  # ptrace_kill_grandtracee
+  # ptrace_tls
+  # ptrace_seize
+  # ptrace_sigchld_blocked
+  # ptrace_signals
+  # ptrace_singlestep
+  # ptrace_syscall
+  # ptrace_syscall_clone_untraced
+  # ptrace_sysemu
+  # ptrace_sysemu_syscall
+  # ptrace_trace_clone
+  # ptrace_trace_exit
+  # ptrace_traceme
   ptracer_death
   ptracer_death_multithread
   ptracer_death_multithread_peer
@@ -996,16 +996,16 @@ set(BASIC_TESTS
   sched_yield_to_lower_priority
   scm_rights
   scratch_read
-  seccomp
-  seccomp_clone_fail
-  seccomp_desched
-  seccomp_kill_exit
-  seccomp_null
-  seccomp_sigsys_args
-  seccomp_sigsys_sigtrap
-  seccomp_sigsys_syscallbuf
+  #seccomp
+  #seccomp_clone_fail
+  #seccomp_desched
+  #seccomp_kill_exit
+  #seccomp_null
+  #seccomp_sigsys_args
+  #seccomp_sigsys_sigtrap
+  #seccomp_sigsys_syscallbuf
   seccomp_tsync
-  seccomp_veto_exec
+  #seccomp_veto_exec
   self_shebang
   self_sigint
   sem
@@ -1041,9 +1041,9 @@ set(BASIC_TESTS
   sigprocmask_rr_sigs
   sigprocmask_syscallbuf
   sigqueueinfo
-  sigreturn
-  sigreturn_reg
-  sigreturnmask
+  #sigreturn
+  #sigreturn_reg
+  #sigreturnmask
   sigrt
   sigstop
   sigstop2
@@ -1057,7 +1057,7 @@ set(BASIC_TESTS
   stack_growth_after_syscallbuf
   stack_growth_syscallbuf
   stack_growth_with_guard
-  stack_invalid
+  #stack_invalid
   stack_overflow
   stack_overflow_altstack
   stack_overflow_with_guard
@@ -1072,8 +1072,8 @@ set(BASIC_TESTS
   symlink
   sync
   sync_file_range
-  syscall_bp
-  syscall_in_writable_mem
+  # syscall_bp
+  # syscall_in_writable_mem
   syscallbuf_signal_reset
   syscallbuf_signal_blocking
   syscallbuf_sigstop
@@ -1174,7 +1174,7 @@ set(TESTS_WITH_PROGRAM
   exit_group
   exit_race
   exit_status
-  explicit_checkpoints
+  # explicit_checkpoints
   fork_stress
   fork_syscalls
   function_calls
@@ -1192,7 +1192,7 @@ set(TESTS_WITH_PROGRAM
   interrupt
   intr_ptrace_decline
   invalid_jump
-  jit_proc_mem
+  # jit_proc_mem
   link
   madvise_dontfork
   main_thread_exit
@@ -1206,11 +1206,11 @@ set(TESTS_WITH_PROGRAM
   mprotect_syscallbuf_overflow
   mutex_pi_stress
   nested_detach_wait
-  overflow_branch_counter
-  patch_page_end
+  # overflow_branch_counter
+  # patch_page_end
   x86/patch_40_80_f6_81
   priority
-  ptrace_remote_unmap
+  # ptrace_remote_unmap
   remove_latest_trace
   # Not called ps, because that interferes with using real 'ps' in tests
   rr_ps
@@ -1223,7 +1223,7 @@ set(TESTS_WITH_PROGRAM
   reverse_many_breakpoints
   reverse_step_long
   reverse_step_threads
-  reverse_step_threads_break
+  #reverse_step_threads_break
   search
   seccomp_blocks_rr
   seccomp_signals
@@ -1270,7 +1270,7 @@ set(TESTS_WITH_PROGRAM
   wait_for_all
   watchpoint
   watchpoint_at_sched
-  watchpoint_before_signal
+  # watchpoint_before_signal
   watchpoint_no_progress
   watchpoint_size_change
   watchpoint_syscall
