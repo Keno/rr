@@ -197,7 +197,11 @@ struct RecordFlags {
         copy_preload_src(false),
         syscallbuf_desched_sig(SYSCALLBUF_DEFAULT_DESCHED_SIGNAL),
         stap_sdt(false),
-        unmap_vdso(false) {}
+        unmap_vdso(false) {
+#ifdef __aarch64__
+        unmap_vdso = true;
+#endif
+        }
 };
 
 static void parse_signal_name(ParsedOption& opt) {
