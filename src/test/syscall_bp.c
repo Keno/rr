@@ -17,6 +17,10 @@ static uintptr_t my_syscall(uintptr_t syscall, uintptr_t arg1, uintptr_t arg2,
                    "xchg %%esi,%%edi\n\t"
                    : "=a"(ret)
                    : "a"(syscall), "b"(arg1), "c"(arg2), "d"(arg3));
+#elif defined(__aarch64__)
+  __asm__ volatile("svc #0\n\t"
+                   : "=0"(ret)
+                   : "8"(syscall), "0"(arg1), "1"(arg2), "2"(arg3));
 #else
 #error define syscall here
 #endif

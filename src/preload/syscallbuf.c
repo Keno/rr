@@ -176,7 +176,9 @@ static void local_memcpy(void* dest, const void* source, int n) {
                        :
                        : "cc", "memory");
 #else
-#error Unknown architecture
+  for (int i = 0; i < n; ++i) {
+    *(((uint8_t*)dest)+i) = *(((uint8_t*)source)+i);
+  }
 #endif
 }
 
@@ -194,7 +196,9 @@ static void local_memset(void* dest, uint8_t c, int n) {
                        :
                        : "cc", "memory");
 #else
-#error Unknown architecture
+  for (int i = 0; i < n; ++i) {
+    *(((uint8_t*)dest)+i) = c;
+  }
 #endif
 }
 
@@ -354,6 +358,13 @@ static long untraced_syscall_base(int syscallno, long a0, long a1, long a2,
           "xor %1,%1\n\t"
           : "+a"(ret), "+c"(tmp_in_replay)
           : "m"(rec->ret)
+          : "cc");
+#elif defined(__aarch64__)
+  __asm__("cmp %1,%1\n\t"
+          "csel %2,%0,%0,eq\n\t"
+          "eor %1,%1,%1\n\t"
+          : "+r"(ret), "+r"(tmp_in_replay)
+          : "r"(rec->ret)
           : "cc");
 #else
 #error Unknown architecture
@@ -939,6 +950,7 @@ static void do_breakpoint(size_t value)
   char *unsafe_value = ((char*)-1)-0xf;
   char **safe_value = &unsafe_value;
   uint64_t *breakpoint_value_addr = &globals.breakpoint_value;
+#if defined(__x86_64__) || defined(__i386__)
   __asm__ __volatile__(
                       "mov (%1),%1\n\t"
                       "cmp %0,%1\n\t"
@@ -957,6 +969,19 @@ static void do_breakpoint(size_t value)
                         "+S"(safe_value), "+c"(unsafe_value)
                       :
                       : "cc", "memory");
+#elif defined(__aarch64__)
+  fatal();
+  __asm__ __volatile__(
+                      "do_breakpoint_fault_addr:\n\t"
+                      ".global do_breakpoint_fault_addr\n\t"
+                      "mov %0, %1"
+                      : "+r"(value), "+r"(breakpoint_value_addr),
+                        "+r"(safe_value), "+r"(unsafe_value)
+                      :
+                      : "cc", "memory");
+#else
+#error Unknown architecture
+#endif
 }
 
 /**
@@ -1082,6 +1107,9 @@ static void memcpy_input_parameter(void* buf, void* src, int size) {
                        : "+a"(tmp_in_replay), "+D"(buf), "+S"(src), "+c"(size)
                        :
                        : "cc", "memory");
+#elif defined(__aarch64__)
+(void)buf; (void)src; (void)size;
+fatal();
 #else
 #error Unknown architecture
 #endif
@@ -1104,6 +1132,20 @@ static void copy_futex_int(uint32_t* buf, uint32_t* real) {
                        /* This instruction is just to clear flags */
                        "xor %0,%0\n\t"
                        : "+a"(tmp_in_replay)
+                       : "m"(*buf), "m"(*real)
+                       : "cc", "memory");
+#elif defined(__aarch64__)
+  uint32_t tmp_in_replay = globals.in_replay;
+  uint32_t tmp2 = 0;
+  __asm__ __volatile__("cmp %0,%0\n\t"
+                       "ldr %0,%3\n\t"
+                       "ldr %1,%2\n\t"
+                       "csel %0,%0,%1,ne\n\t"
+                       "str %0,%2\n\t"
+                       "str %0,%3\n\t"
+                       /* This instruction is just to clear flags */
+                       "eor %0,%0,%0\n\t"
+                       : "+r"(tmp_in_replay), "+r"(tmp2)
                        : "m"(*buf), "m"(*real)
                        : "cc", "memory");
 #else

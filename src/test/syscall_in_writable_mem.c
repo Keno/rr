@@ -9,6 +9,10 @@ static char syscall_bytes[] =
     { 0x0f, 0x05, 0xc3 }
 #elif __i386__
     { 0xcd, 0x80, 0xc3 }
+#elif __aarch64__
+    { 0x1, 0x0, 0x0, 0xd4,    // svc #0
+      0xc0, 0x03, 0x5f, 0xd6, // ret
+    }
 #else
 #error Unknown architecture
 #endif
@@ -25,6 +29,10 @@ static void do_write(int fd, const char* p) {
   __asm__ __volatile__("call *%%esi\n\t"
                        : "=a"(ret)
                        : "a"(SYS_write), "S"(ptr), "b"(fd), "c"(p), "d"(len));
+#elif __aarch64__
+  __asm__ __volatile__("blr x7\n\t"
+                       : "=0"(ret)
+                       : "8"(SYS_write), "0"(fd), "1"(p), "2"(len), "7"(ptr));
 #else
 #error Unknown architecture
 #endif

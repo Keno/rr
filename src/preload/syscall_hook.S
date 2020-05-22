@@ -545,6 +545,10 @@ SYSCALLHOOK_START(_syscall_hook_trampoline_40_80_f6_81)
 	call __morestack
 SYSCALLHOOK_END(_syscall_hook_trampoline_40_80_f6_81)
 
-#endif /* __x86_64__ */
+#elif defined(__aarch64__)
+_syscallbuf_code_start:
+_syscallbuf_final_exit_instruction:
+        nop
+#endif
 
         .section .note.GNU-stack,"",@progbits

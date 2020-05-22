@@ -9,6 +9,8 @@ static void handler(int sig, __attribute__((unused)) siginfo_t* si, void* p) {
   ctx->uc_mcontext.gregs[REG_EAX] = 42;
 #elif defined(__x86_64__)
   ctx->uc_mcontext.gregs[REG_RAX] = 42;
+#elif defined(__aarch64__)
+  ctx->uc_mcontext.gregs[0] = 42;
 #else
 #error define architecture here
 #endif
