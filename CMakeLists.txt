@@ -1495,7 +1495,7 @@ if(BUILD_TESTS)
                   \$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/rr/testsuite/obj/bin_dir)")
   endif(INSTALL_TESTSUITE)
 
-  foreach(test ${BASIC_TESTS} ${BASIC_CPP_TESTS} ${OTHER_TESTS})
+  foreach(test ${BASIC_TESTS})
     get_filename_component(testname ${test} NAME)
     #add_test(${test}
     #  bash source_dir/src/test/basic_test.run ${testname} -b bin_dir ${TEST_MONITOR_DEFAULT_TIMEOUT})
@@ -1505,7 +1505,7 @@ if(BUILD_TESTS)
     configure_test(${test}-no-syscallbuf)
   endforeach(test)
 
-  foreach(test ${TESTS_WITH_PROGRAM} ${TESTS_WITHOUT_PROGRAM})
+  foreach(test)
     get_filename_component(testname ${test} NAME)
     #add_test(${test}
     #  bash source_dir/src/test/${test}.run ${testname} -b bin_dir ${TEST_MONITOR_DEFAULT_TIMEOUT})
