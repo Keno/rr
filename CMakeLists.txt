@@ -1497,9 +1497,9 @@ if(BUILD_TESTS)
 
   foreach(test ${BASIC_TESTS} ${BASIC_CPP_TESTS} ${OTHER_TESTS})
     get_filename_component(testname ${test} NAME)
-    add_test(${test}
-      bash source_dir/src/test/basic_test.run ${testname} -b bin_dir ${TEST_MONITOR_DEFAULT_TIMEOUT})
-    configure_test(${test})
+    #add_test(${test}
+    #  bash source_dir/src/test/basic_test.run ${testname} -b bin_dir ${TEST_MONITOR_DEFAULT_TIMEOUT})
+    #configure_test(${test})
     add_test(${test}-no-syscallbuf
       bash source_dir/src/test/basic_test.run ${testname} -n bin_dir ${TEST_MONITOR_DEFAULT_TIMEOUT})
     configure_test(${test}-no-syscallbuf)
@@ -1507,9 +1507,9 @@ if(BUILD_TESTS)
 
   foreach(test ${TESTS_WITH_PROGRAM} ${TESTS_WITHOUT_PROGRAM})
     get_filename_component(testname ${test} NAME)
-    add_test(${test}
-      bash source_dir/src/test/${test}.run ${testname} -b bin_dir ${TEST_MONITOR_DEFAULT_TIMEOUT})
-    configure_test(${test})
+    #add_test(${test}
+    #  bash source_dir/src/test/${test}.run ${testname} -b bin_dir ${TEST_MONITOR_DEFAULT_TIMEOUT})
+    #configure_test(${test})
     add_test(${test}-no-syscallbuf
       bash source_dir/src/test/${test}.run ${testname} -n bin_dir ${TEST_MONITOR_DEFAULT_TIMEOUT})
     configure_test(${test}-no-syscallbuf)
