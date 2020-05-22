@@ -159,13 +159,14 @@ uid_t geteuid(void) {
  * `inc %ecx`).
  */
 int sched_yield(void) {
-  int trash;
 #ifdef __i386__
+  int trash;
   asm volatile ("int $0x80; inc %0" : "=c"(trash) : "a"(SYS_sched_yield));
 #elif defined(__x86_64__)
+  int trash;
   asm volatile ("syscall; inc %0" : "=c"(trash) : "a"(SYS_sched_yield));
-#else
-#error "Unknown architecture"
+#elif defined(__x86_64__)
+  asm volatile ("svc #0; dmb;" : "0"(SYS_sched_yield));
 #endif
   return 0;
 }

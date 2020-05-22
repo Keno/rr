@@ -214,6 +214,16 @@ inline static size_t ceil_page_size(size_t size) {
   return (size + page_size - 1) & ~(page_size - 1);
 }
 
+#if defined(__i386__) || defined(__x86_64)
+#define debug_trap() __asm__("int $3")
+#define undefined_instr() __asm__("ud2")
+#elif defined(__aarch64__)
+#define debug_trap() __asm__("brk #0")
+#define undefined_instr() __asm__("brk #1")
+#else
+#error "Unknown architecture"
+#endif
+
 /**
  * Allocate 'size' bytes, fill with 'value', place canary value before
  * the allocated block, and put guard pages before and after. Ensure
