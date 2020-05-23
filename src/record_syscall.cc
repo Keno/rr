@@ -5916,6 +5916,17 @@ void rec_process_syscall(RecordTask* t) {
   }
   rec_process_syscall_internal(t, sys_ev.arch(), syscall_state);
   syscall_state.process_syscall_results();
+
+  if (syscall_state.syscall_entry_registers.arch() == aarch64) {
+    // The kernel lies about the real register state during syscall exits.
+    // Try to fix that up to retain some measure of sanity (otherwise we
+    // might leak an incorrect register into userspace, causing an
+    // un-recorded divergence). I'm really hoping to get this fixed
+    // in the kernel.
+    Registers r = t->regs();
+    r.set_x7(syscall_state.syscall_entry_registers.x7());
+    t->set_regs(r);
+  }
   t->on_syscall_exit(sys_ev.number, sys_ev.arch(), t->regs());
   syscall_state_property.remove(*t);
 
