@@ -181,6 +181,9 @@ FastForwardStatus fast_forward_through_instruction(Task* t, ResumeRequest how,
     // breakpoint must have fired
     return result;
   }
+  if (!is_x86ish(t)) {
+    return result;
+  }
   if (t->vm()->notify_watchpoint_fired(t->x86_debug_status(),
           t->last_execution_resume())) {
     // watchpoint fired
@@ -190,9 +193,6 @@ FastForwardStatus fast_forward_through_instruction(Task* t, ResumeRequest how,
     if (state->matches(t->regs())) {
       return result;
     }
-  }
-  if (!is_x86ish(t)) {
-    return result;
   }
 
   InstructionBuf instruction_buf = read_instruction(t, ip);
