@@ -1596,6 +1596,14 @@ ReplayTask* ReplaySession::setup_replay_one_trace_frame(ReplayTask* t) {
         if (current_step.action == TSTEP_RETIRE) {
           t->on_syscall_exit(current_step.syscall.number,
                              current_step.syscall.arch, trace_frame.regs());
+          if (t->arch() == aarch64 && t->regs().syscall_may_restart()) {
+            // Now apply the register modifcations the kernel would do for a
+            // restart.
+            Registers r = t->regs();
+            r.set_arg1(r.orig_arg1());
+            r.set_ip(r.ip().decrement_by_syscall_insn_length(t->arch()));
+            t->set_regs(r);
+          }
         }
       }
       break;
