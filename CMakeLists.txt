@@ -1099,7 +1099,7 @@ set(BASIC_TESTS
   vfork_flush
   vfork_shared
   video_capture
-  vm_readv_writev
+  #vm_readv_writev
   vsyscall
   wait
   wait_sigstop
