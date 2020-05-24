@@ -165,8 +165,10 @@ int sched_yield(void) {
 #elif defined(__x86_64__)
   int trash;
   asm volatile ("syscall; inc %0" : "=c"(trash) : "a"(SYS_sched_yield));
-#elif defined(__x86_64__)
-  asm volatile ("svc #0; dmb;" : "0"(SYS_sched_yield));
+#elif defined(__aarch64__)
+	register long x8 __asm__("x8") = SYS_sched_yield;
+  register long x0 __asm__("x0");
+  asm volatile ("svc #0;" : "=r"(x0) : "r"(x8));
 #endif
   return 0;
 }
