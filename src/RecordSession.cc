@@ -1079,6 +1079,7 @@ void RecordSession::syscall_state_changed(RecordTask* t,
         if (t->arch() == x86 || t->arch() == x86_64) {
           ASSERT(t, t->regs().original_syscallno() == -1);
         }
+        rec_did_sigreturn(t);
         t->record_current_event();
         t->pop_syscall();
 
