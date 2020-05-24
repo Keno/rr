@@ -219,7 +219,7 @@ inline static size_t ceil_page_size(size_t size) {
 #define undefined_instr() __asm__("ud2")
 #elif defined(__aarch64__)
 #define debug_trap() __asm__("brk #0")
-#define undefined_instr() __asm__("brk #1")
+#define undefined_instr() __asm__("mrs x0, S3_6_C15_C8_0")
 #else
 #error "Unknown architecture"
 #endif
