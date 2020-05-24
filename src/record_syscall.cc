@@ -4445,6 +4445,19 @@ static Switchable rec_prepare_syscall_arch(RecordTask* t,
 
     case Arch::sigreturn:
     case Arch::rt_sigreturn:
+      if (t->arch() == aarch64) {
+        // This is a bit of a hack, but we don't really have a
+        // good way to do this otherwise. We need to record the
+        // restored x7 register, but the kernel will lie to us
+        // about it.
+        remote_ptr<ARM64Arch::rt_sigframe> frame = t->regs().sp().cast<ARM64Arch::rt_sigframe>();
+        auto x_regs_arr = REMOTE_PTR_FIELD(REMOTE_PTR_FIELD(
+          REMOTE_PTR_FIELD(REMOTE_PTR_FIELD(frame, uc), uc_mcontext),
+          regs),x);
+        auto x7 = t->read_mem(x_regs_arr.field((uintptr_t*)nullptr,
+          7 * sizeof(uintptr_t)));
+        syscall_state.syscall_entry_registers.set_x7(x7);
+      }
       t->invalidate_sigmask();
       return PREVENT_SWITCH;
 
