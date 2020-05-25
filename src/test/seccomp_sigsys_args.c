@@ -12,8 +12,8 @@ static void handler(int sig, __attribute__((unused)) siginfo_t* si, void* p) {
   test_assert(ctx->uc_mcontext.gregs[REG_RDI] == 0);
   ctx->uc_mcontext.gregs[REG_RAX] = 42;
 #elif defined(__aarch64__)
-  test_assert(ctx->uc_mcontext.gregs[0] == 0);
-  ctx->uc_mcontext.gregs[0] = 42;
+  test_assert(ctx->uc_mcontext.regs[0] == 0);
+  ctx->uc_mcontext.regs[0] = 42;
 #else
 #error define architecture here
 #endif
