@@ -970,7 +970,11 @@ void rep_prepare_run_to_syscall(ReplayTask* t, ReplayTraceStep* step) {
 
   if (is_restart_syscall_syscall(sys, sys_ev.arch())) {
     ASSERT(t, t->tick_count() == t->current_trace_frame().ticks());
-    t->set_regs(t->current_trace_frame().regs());
+    Registers r = t->current_trace_frame().regs();
+    // The kernel applies this for the restart_syscall, so we need to as well.
+    // On x86 this get overwritten right away with the syscall result,
+    // but elsewhere it can leak into userspace.
+    t->set_regs(r);
     t->apply_all_data_records_from_trace();
     step->action = TSTEP_RETIRE;
     return;
@@ -1134,8 +1138,8 @@ static void rep_process_syscall_arch(ReplayTask* t, ReplayTraceStep* step,
       RR_FALLTHROUGH;
     case Arch::prctl: {
       auto arg1 = t->regs().arg1();
-      if ((Arch::arch() != aarch64 && sys == Arch::prctl) ||
-          arg1 != PR_SET_SPECULATION_CTRL) {
+      if (sys == Arch::prctl && (Arch::arch() != aarch64 ||
+          arg1 != PR_SET_SPECULATION_CTRL)) {
         // On aarch64 PR_SET_SPECULATION_CTRL affects the pstate
         // register during the system call, so we need to replay
         // it, otherwise we'll get a mismatch there.

@@ -4525,10 +4525,26 @@ void rec_abort_prepared_syscall(RecordTask* t) {
   }
 }
 
+static void aarch64_kernel_bug_workaround(RecordTask *t,
+                                          const TaskSyscallState &syscall_state)
+{
+  if (syscall_state.syscall_entry_registers.arch() == aarch64) {
+    // The kernel lies about the real register state during syscall exits.
+    // Try to fix that up to retain some measure of sanity (otherwise we
+    // might leak an incorrect register into userspace, causing an
+    // un-recorded divergence). I'm really hoping to get this fixed
+    // in the kernel.
+    Registers r = t->regs();
+    r.set_x7(syscall_state.syscall_entry_registers.x7());
+    t->set_regs(r);
+  }
+}
+
 template <typename Arch>
 static void rec_prepare_restart_syscall_arch(RecordTask* t,
                                              TaskSyscallState& syscall_state) {
   int syscallno = t->ev().Syscall().number;
+  aarch64_kernel_bug_workaround(t, syscall_state);
   switch (syscallno) {
     case Arch::nanosleep:
     case Arch::clock_nanosleep:
@@ -5904,21 +5920,6 @@ static void rec_process_syscall_arch(RecordTask* t,
 static void rec_process_syscall_internal(RecordTask* t, SupportedArch arch,
                                          TaskSyscallState& syscall_state) {
   RR_ARCH_FUNCTION(rec_process_syscall_arch, arch, t, syscall_state)
-}
-
-static void aarch64_kernel_bug_workaround(RecordTask *t,
-                                          const TaskSyscallState &syscall_state)
-{
-  if (syscall_state.syscall_entry_registers.arch() == aarch64) {
-    // The kernel lies about the real register state during syscall exits.
-    // Try to fix that up to retain some measure of sanity (otherwise we
-    // might leak an incorrect register into userspace, causing an
-    // un-recorded divergence). I'm really hoping to get this fixed
-    // in the kernel.
-    Registers r = t->regs();
-    r.set_x7(syscall_state.syscall_entry_registers.x7());
-    t->set_regs(r);
-  }
 }
 
 void rec_did_sigreturn(RecordTask *t) {

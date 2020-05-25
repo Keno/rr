@@ -228,6 +228,21 @@ static void note_entering_syscall(RecordTask* t) {
      * (if it's not a SYS_restart_syscall restart)
      * will use the original registers. */
     t->ev().Syscall().regs = t->regs();
+  } else {
+    t->ev().Syscall().regs.set_syscallno(t->regs().syscallno());
+    // We may have intentionally stored the syscall result here.
+    // Now that we're safely past the signal delivery, make the
+    // registers look like they did at the original syscall entry
+    // again.
+    t->ev().Syscall().regs.set_arg1(t->ev().Syscall().regs.orig_arg1());
+    if (t->arch() == aarch64) {
+      // We probably got here with a PTRACE_SYSCALL. The x7
+      // value will be wrong due to the aarch64 kernel bug.
+      // Get it from the syscall event.
+      Registers r = t->regs();
+      r.set_x7(t->ev().Syscall().regs.x7());
+      t->set_regs(r);
+    }
   }
 }
 
@@ -1145,6 +1160,10 @@ void RecordSession::syscall_state_changed(RecordTask* t,
           Registers r = t->regs();
           copy_syscall_arg_regs(&r, t->ev().Syscall().regs);
           t->set_regs(r);
+          // We need to track what the return value was on architectures
+          // where the kernel replaces the return value by the new arg1
+          // on restart.
+          t->ev().Syscall().regs = r;
         }
         t->record_current_event();
 
@@ -1512,21 +1531,20 @@ bool RecordSession::signal_state_changed(RecordTask* t, StepState* step_state) {
       bool has_other_signals = t->has_any_actionable_signal();
       auto r = t->regs();
       if (!is_fatal) {
-        if (can_switch == PREVENT_SWITCH && !has_other_signals &&
-            r.original_syscallno() >= 0 && r.syscall_may_restart()) {
-          switch (r.syscall_result_signed()) {
+        Event *prev_ev = t->prev_ev();
+        if (can_switch == PREVENT_SWITCH && !has_other_signals && prev_ev &&
+            EV_SYSCALL_INTERRUPTION == prev_ev->type()) {
+          switch (prev_ev->Syscall().regs.syscall_result_signed()) {
             case -ERESTARTNOHAND:
             case -ERESTARTSYS:
             case -ERESTARTNOINTR:
               r.set_syscallno(r.original_syscallno());
-              r.set_ip(r.ip().decrement_by_syscall_insn_length(t->arch()));
               break;
             case -ERESTART_RESTARTBLOCK:
               r.set_syscallno(syscall_number_for_restart_syscall(t->arch()));
-              r.set_ip(r.ip().decrement_by_syscall_insn_length(t->arch()));
               break;
           }
-
+          r.set_ip(r.ip().decrement_by_syscall_insn_length(t->arch()));
           // Now that we've mucked with the registers, we can't switch tasks. That
           // could allow more signals to be generated, breaking our assumption
           // that we are the last signal.
