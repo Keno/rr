@@ -28,6 +28,16 @@ STARTPROC_GLOBAL(__vdso_gettimeofday)
 SYSCALL(96)
 CFI_ENDPROC
 
+// Older libs don't use the __vdso symbols, but try to look for the syscall
+// names directly. Follow the kernel vdso and make them weak aliases
+#define WEAK_ALIAS(sym, target) .weak sym; .set sym, target
+
+WEAK_ALIAS(clock_getres, __vdso_clock_getres)
+WEAK_ALIAS(getcpu, __vdso_getcpu)
+WEAK_ALIAS(time, __vdso_time)
+WEAK_ALIAS(clock_gettime, __vdso_clock_gettime)
+WEAK_ALIAS(gettimeofday,__vdso_gettimeofday)
+
 #elif defined(__i386__)
 
 // __vdso functions use the C calling convention, so
