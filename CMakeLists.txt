@@ -336,6 +336,7 @@ set(RR_PAGE_FILES
 set(RR_PAGE_SOURCE_FILES
   ${RR_PAGE_FILES}
   rr_page_instructions.S
+  rr_vdso.S
   rr_page.ld
 )
 add_library(rrpage)
@@ -607,8 +608,6 @@ endif()
 
 target_link_libraries(rrpreload
   ${CMAKE_DL_LIBS}
-  -Wl,-no-as-needed
-  rrpage
 )
 
 add_executable(rr_exec_stub src/exec_stub.c)
@@ -718,8 +717,6 @@ if(rr_32BIT AND rr_64BIT)
   set_target_properties(rrpreload_32 PROPERTIES INSTALL_RPATH "\$ORIGIN")
   target_link_libraries(rrpreload_32
     ${CMAKE_DL_LIBS}
-    -Wl,-no-as-needed
-    rrpage_32
   )
 
   add_library(rraudit_32)
