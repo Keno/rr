@@ -67,6 +67,7 @@ struct PackFlags {
    * files, rather than copying the files themselves */
   bool symlink;
   std::vector<string> index_dirs;
+  std::string pack_dir;
 
   PackFlags()
       : symlink(false) {}
@@ -84,6 +85,12 @@ struct FileInfo {
   FileHash hash;
   uint64_t size;
   bool is_hardlink;
+};
+
+struct PackDir {
+  string dir;
+  map<FileHash, string> mapped_files;
+  PackDir(string dir) : dir(dir) {}
 };
 
 static bool name_comparator(const TraceReader::MappedData& d1,
@@ -415,7 +422,8 @@ static map<string, string> compute_canonical_symlink_map(
  */
 static map<string, string> compute_canonical_mmapped_files(
     const string& trace_dir,
-    const vector<pair<string, map<FileHash, string>>> indexed_dirs) {
+    const vector<pair<string, map<FileHash, string>>> indexed_dirs,
+    PackDir &pack_dir) {
   map<string, FileInfo> file_info = gather_file_info(trace_dir);
 
   map<FileHash, string> hash_to_name;
@@ -433,6 +441,7 @@ static map<string, string> compute_canonical_mmapped_files(
 
   int name_index = 0;
   for (auto& p : hash_to_name) {
+    LOG(debug) << "Processing " << p.second;
     bool found = false;
     // First see if this file is anywhere in our index. If so, prefer the index
     for (auto& indexed_dir : indexed_dirs) {
@@ -447,11 +456,25 @@ static map<string, string> compute_canonical_mmapped_files(
     if (found) {
       continue;
     }
+
+    // Now check if this is in our common pack directory
+    auto it = pack_dir.mapped_files.find(p.first);
+    if (it != pack_dir.mapped_files.end()) {
+      LOG(debug) << "Found in common pack dir";
+      p.second = symlink_into_trace(it->second, trace_dir, &name_index);
+      continue;
+    }
+
     // Copy hardlinked files into the trace to avoid the possibility of someone
     // overwriting the original file.
     auto& info = file_info[p.second];
     if (info.is_hardlink || !is_in_trace_dir(p.second, trace_dir)) {
-      p.second = copy_into_trace(p.second, trace_dir, &name_index);
+      if (pack_dir.dir != "") {
+        auto path = pack_dir.mapped_files[p.first] = copy_into_trace(p.second, pack_dir.dir, &name_index);
+        p.second = symlink_into_trace(fs::relative(path, trace_dir), trace_dir, &name_index);
+      } else {
+        p.second = copy_into_trace(p.second, trace_dir, &name_index);
+      }
     }
   }
 
@@ -558,6 +581,7 @@ static int pack(const vector<string>& trace_dirs, const PackFlags &flags) {
     indexed_dirs.push_back(std::make_pair(p.filename(), index_dir(dir)));
   }
 
+  PackDir pack_dir(flags.pack_dir);
   char buf[PATH_MAX];
   for (const string &trace_dir : trace_dirs) {
     string dir;
@@ -602,7 +626,7 @@ static int pack(const vector<string>& trace_dirs, const PackFlags &flags) {
       delete_unnecessary_files(canonical_symlink_map, abspath);
     } else {
       map<string, string> canonical_mmapped_files =
-          compute_canonical_mmapped_files(abspath, indexed_dirs);
+          compute_canonical_mmapped_files(abspath, indexed_dirs, pack_dir);
       rewrite_mmaps(canonical_mmapped_files, abspath);
       delete_unnecessary_files(canonical_mmapped_files, abspath);
     }
@@ -619,6 +643,7 @@ static bool parse_pack_arg(vector<string>& args, PackFlags& flags) {
   static const OptionSpec options[] = {
     { 0, "symlink", NO_PARAMETER },
     { 1, "index-dir", HAS_PARAMETER },
+    { 2, "pack-dir", HAS_PARAMETER },
   };
   ParsedOption opt;
   auto args_copy = args;
@@ -632,6 +657,9 @@ static bool parse_pack_arg(vector<string>& args, PackFlags& flags) {
       break;
     case 1:
       flags.index_dirs.push_back(opt.value);
+      break;
+    case 2:
+      flags.pack_dir = opt.value;
       break;
     default:
       DEBUG_ASSERT(0 && "Unknown pack option");
