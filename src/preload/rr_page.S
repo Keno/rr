@@ -55,6 +55,10 @@
     ret
 #endif
 
+.section .sh_placeholder, "a"
+.align 0x1000
+.fill 0x1000, 1, 0xff
+
 .section .vdso.text, "a", @progbits
 .align 0x1000
 
