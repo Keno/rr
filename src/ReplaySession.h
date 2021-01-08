@@ -9,6 +9,7 @@
 #include "AddressSpace.h"
 #include "CPUIDBugDetector.h"
 #include "DiversionSession.h"
+#include "TraceStream.h"
 #include "EmuFs.h"
 #include "Session.h"
 #include "Task.h"
@@ -316,7 +317,7 @@ public:
 
   unsigned long modified_xcr0() { return tracee_xcr0; }
 
-  bool explicit_proc_mem() { return trace_in.explicit_proc_mem(); }
+  bool has_trace_quirk(TraceReader::TraceQuirks quirk) { return trace_in.quirks() & quirk; }
 
 private:
   ReplaySession(const std::string& dir, const Flags& flags);

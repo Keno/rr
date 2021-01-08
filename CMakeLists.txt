@@ -336,6 +336,7 @@ set(RR_PAGE_FILES
 set(RR_PAGE_SOURCE_FILES
   ${RR_PAGE_FILES}
   rr_page_instructions.S
+  rr_vdso.S
   rr_page.ld
 )
 add_library(rrpage)
@@ -344,10 +345,13 @@ foreach(file ${RR_PAGE_FILES})
   set_source_files_properties("${CMAKE_SOURCE_DIR}/src/preload/${file}"
                               PROPERTIES COMPILE_FLAGS ${PRELOAD_COMPILE_FLAGS})
 endforeach(file)
-set_target_properties(rrpage PROPERTIES LINK_FLAGS "-Wl,-T -Wl,${CMAKE_SOURCE_DIR}/src/preload/rr_page.ld -nostartfiles -nostdlib ${LINKER_FLAGS}")
+set_target_properties(rrpage PROPERTIES LINK_FLAGS "-Wl,-T -Wl,${CMAKE_SOURCE_DIR}/src/preload/rr_page.ld -nostartfiles -nostdlib -Wl,-z,max-page-size=0x1000 ${LINKER_FLAGS}")
 set_target_properties(rrpage PROPERTIES LINK_DEPENDS ${CMAKE_SOURCE_DIR}/src/preload/rr_page.ld)
 # CMake seems to have trouble generating the link line without this
 set_target_properties(rrpage PROPERTIES LINKER_LANGUAGE C)
+
+add_custom_command(TARGET rrpage POST_BUILD
+                   COMMAND ${CMAKE_SOURCE_DIR}/src/preload/tweak_librrpage.py $<TARGET_FILE:rrpage>)
 
 # Order matters here! syscall_hook.S must be immediately before syscallbuf.c,
 # raw_syscall.S must be before overrides.c, which must be last.
@@ -607,8 +611,6 @@ endif()
 
 target_link_libraries(rrpreload
   ${CMAKE_DL_LIBS}
-  -Wl,-no-as-needed
-  rrpage
 )
 
 add_executable(rr_exec_stub src/exec_stub.c)
@@ -700,6 +702,10 @@ if(rr_32BIT AND rr_64BIT)
   set_target_properties(rrpage_32 PROPERTIES LINK_DEPENDS ${CMAKE_SOURCE_DIR}/src/preload/rr_page.ld)
   set_target_properties(rrpage_32 PROPERTIES LINKER_LANGUAGE C)
 
+  add_custom_command(TARGET rrpage_32 POST_BUILD
+                    COMMAND ${CMAKE_SOURCE_DIR}/src/preload/tweak_librrpage.py $<TARGET_FILE:rrpage_32>)
+
+
   add_library(rrpreload_32)
 
   foreach(file ${PRELOAD_SOURCE_FILES})
@@ -718,8 +724,6 @@ if(rr_32BIT AND rr_64BIT)
   set_target_properties(rrpreload_32 PROPERTIES INSTALL_RPATH "\$ORIGIN")
   target_link_libraries(rrpreload_32
     ${CMAKE_DL_LIBS}
-    -Wl,-no-as-needed
-    rrpage_32
   )
 
   add_library(rraudit_32)
