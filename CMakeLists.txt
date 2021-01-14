@@ -829,6 +829,7 @@ set(BASIC_TESTS
   daemon
   desched_blocking_poll
   detach_state
+  detach_threads
   deterministic_sigsys
   direct
   dup
