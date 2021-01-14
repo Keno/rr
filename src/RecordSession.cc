@@ -319,7 +319,22 @@ void RecordSession::handle_seccomp_traced_syscall(RecordTask* t,
     // SIGSYS. Instead, we set a breakpoint at the return instruction.
     t->set_regs(regs);
     t->vm()->add_breakpoint(ret_addr, BKPT_INTERNAL);
-    t->resume_execution(RESUME_SYSCALL, RESUME_WAIT, RESUME_NO_TICKS);
+    while (true) {
+      t->resume_execution(RESUME_SYSCALL, RESUME_WAIT, RESUME_NO_TICKS);
+      if (t->ptrace_event() == PTRACE_EVENT_EXIT) {
+        return;
+      }
+      ASSERT(t, !t->ptrace_event());
+      if (t->stop_sig() == syscallbuf_desched_sig()) {
+        continue;
+      }
+      if (t->stop_sig() == SIGTRAP &&
+          is_kernel_trap(t->get_siginfo().si_code)) {
+        // Hit the breakpoint
+        break;
+      }
+      t->stash_sig();
+    }
     t->vm()->remove_breakpoint(ret_addr, BKPT_INTERNAL);
 
     ASSERT(t, t->regs().ip().undo_executed_bkpt(t->arch()) == ret_addr);
@@ -779,6 +794,13 @@ void RecordSession::task_continue(const StepState& step_state) {
         ticks_request = (TicksRequest)after;
         t->next_pmc_interrupt_is_for_user = true;
       }
+    }
+
+    // Override requested by the tracee for testing purposes
+    if (t->tick_request_override != (TicksRequest)0) {
+      ASSERT(t, !t->next_pmc_interrupt_is_for_user);
+      ticks_request = t->tick_request_override;
+      t->tick_request_override = (TicksRequest)0;
     }
 
     bool singlestep = is_ptrace_any_singlestep(t->arch(),
