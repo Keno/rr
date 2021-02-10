@@ -461,7 +461,7 @@ static map<string, string> compute_canonical_mmapped_files(
     auto it = pack_dir.mapped_files.find(p.first);
     if (it != pack_dir.mapped_files.end()) {
       LOG(debug) << "Found in common pack dir";
-      p.second = symlink_into_trace(it->second, trace_dir, &name_index);
+      p.second = symlink_into_trace(fs::relative(it->second, trace_dir), trace_dir, &name_index);
       continue;
     }
 
