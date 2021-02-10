@@ -396,14 +396,14 @@ static void emergency_debug(Task* t) {
     dump_last_events(*trace_stream);
   }
 
+  flush_log_buffer();
+
   if (probably_not_interactive() && !Flags::get().force_things &&
       !getenv("RUNNING_UNDER_TEST_MONITOR")) {
     errno = 0;
     FATAL()
         << "(session doesn't look interactive, aborting emergency debugging)";
   }
-
-  flush_log_buffer();
 
   GdbServer::emergency_debug(t);
   FATAL() << "Can't resume execution from invalid state";
