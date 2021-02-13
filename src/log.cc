@@ -396,6 +396,7 @@ static void emergency_debug(Task* t) {
     dump_last_events(*trace_stream);
   }
 
+  flush_log_stream();
   flush_log_buffer();
 
   if (probably_not_interactive() && !Flags::get().force_things &&
